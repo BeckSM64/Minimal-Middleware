@@ -35,11 +35,21 @@ int mmw_create_publisher(const char* topic) {
     server_addr.sin_port = htons(PORT);
     inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr); // TODO: Replace localhost IP with real IP
 
+    // Connect to the broker, exit if unsuccesful
     if (connect(sock_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         perror("connect");
         close(sock_fd);
         sock_fd = -1;
         return -1;
+
+    } else { // if successful, send a message to register the topic
+        std::string registration = "PUB_REGISTER:" + std::string(topic);
+        send(sock_fd, registration.c_str(), registration.size(), 0);
+
+        // TODO: THIS IS A TEMPORARY HACK TO FIX MESSAGE CONCATENATION ISSUE
+        // When updating messaging system to be more robust, send fixed length message size
+        // along with the message
+        std::this_thread::sleep_for(std::chrono::milliseconds(50)); // give broker time
     }
 
     // Add socket_fd to global list
@@ -69,11 +79,20 @@ int mmw_create_subscriber(const char* topic, void (*mmw_callback)(const char*)) 
     server_addr.sin_port = htons(PORT);
     inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr); // TODO: Replace localhost IP with real IP
 
+    // Connect to the broker, exit if unsuccesful
     if (connect(sock_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         perror("connect");
         close(sock_fd);
         sock_fd = -1;
         return -1;
+    } else { // if successful, send a message to register the topic
+        std::string registration = "SUB_REGISTER:" + std::string(topic);
+        send(sock_fd, registration.c_str(), registration.size(), 0);
+
+        // TODO: THIS IS A TEMPORARY HACK TO FIX MESSAGE CONCATENATION ISSUE
+        // When updating messaging system to be more robust, send fixed length message size
+        // along with the message
+        std::this_thread::sleep_for(std::chrono::milliseconds(50)); // give broker time
     }
 
     // Add socket_fd to global list
@@ -129,7 +148,9 @@ int mmw_publish(const char* topic, const char *message) {
     }
 
     // TODO: Should publishes be non blocking?
-    send(sock_fd, message, strlen(message), 0);
+    // Construct message, formatted as: TOPIC:topicAsString\nMESSAGE:messageAsString
+    std::string formatted = "TOPIC:" + std::string(topic) + "\nMESSAGE:" + std::string(message);
+    send(sock_fd, formatted.c_str(), strlen(formatted.c_str()), 0);
     return 0;
 }
 
@@ -161,6 +182,8 @@ int mmw_cleanup() {
     // Clear the maps
     publisherTopicToSocketFdMap.clear();
     subscriberTopicToSocketFdMap.clear();
+
+    // TODO: Tell the broker to clear these publishers/subscribers from its datastore
 
     return 0;
 }
