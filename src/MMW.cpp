@@ -1,6 +1,8 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <cstring>
+#include <thread>
+#include <atomic>
 #include <iostream>
 
 #include "MMW.h"
@@ -10,6 +12,7 @@
 
 static int sock_fd = -1;
 static struct sockaddr_in server_addr;
+static std::atomic<bool> running{false};
 
 /**
  * Create a publisher
@@ -64,16 +67,23 @@ int mmw_create_subscriber(void (*mmw_callback)(const char*)) {
     std::cout << "Subscriber connected to broker at " << "127.0.0.1" << ":" << PORT << std::endl;
 
     // Stay alive, wait for message to trigger callback
-    char buffer[1024];
-    while (true) {
-        memset(buffer, 0, sizeof(buffer));
-        int n = recv(sock_fd, buffer, sizeof(buffer) - 1, 0);
-        if (n <= 0) break; // connection closed or error
-        mmw_callback(buffer); // callback to user code
-    }
-    std::cout << "Subscriber disconnected.\n";
+    static std::atomic<bool> running{true};
+    std::thread([mmw_callback]() {
+        char buffer[1024];
+        while (running) {
+            memset(buffer, 0, sizeof(buffer));
+            int n = recv(sock_fd, buffer, sizeof(buffer) - 1, MSG_DONTWAIT); // non-blocking
+            if (n > 0)
+                mmw_callback(buffer);
+            else if (n == 0)
+                break;
+            else if (errno != EWOULDBLOCK && errno != EAGAIN)
+                break;
 
-    return 0;
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        std::cout << "Subscriber listener thread exiting\n";
+    }).detach();
 }
 
 /**

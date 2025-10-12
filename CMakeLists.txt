@@ -12,7 +12,7 @@ add_library(mmw STATIC ${CMAKE_SOURCE_DIR}/src/MMW.cpp)
 target_include_directories(mmw PRIVATE ${CMAKE_SOURCE_DIR}/)
 
 # Add executables
-add_executable(broker ${CMAKE_SOURCE_DIR}/broker/broker.cpp)
+add_executable(broker ${CMAKE_SOURCE_DIR}/broker/Broker.cpp)
 add_executable(publish ${CMAKE_SOURCE_DIR}/app/Publish.cpp)
 add_executable(subscribe ${CMAKE_SOURCE_DIR}/app/Subscribe.cpp)
 

@@ -36,6 +36,9 @@ void handleClient(int client_fd) {
         }
     }
 
+    // Test sending to subscriber
+    // send(client_fd, "Subscriber should get this", strlen("Subscriber should get this"), 0);
+
     while (true) {
         memset(buffer, 0, BUFFER_SIZE);
         int n = recv(client_fd, buffer, BUFFER_SIZE - 1, 0);
