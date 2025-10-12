@@ -10,7 +10,7 @@
 #define BUFFER_SIZE 1024
 
 struct ConnectedClient {
-    std::string ip_address;
+    int socket_fd;
     std::string type;
     std::string topic;
 };
@@ -23,7 +23,7 @@ void handleClient(int client_fd) {
 
     // Add client to list (example data)
     ConnectedClient newClient;
-    newClient.ip_address = "127.0.0.1"; // Replace with actual IP if needed
+    newClient.socket_fd = client_fd;
     newClient.type = "publisher";
     newClient.topic = "test topic";
 
@@ -57,7 +57,9 @@ int main() {
     socklen_t addrlen = sizeof(address);
 
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_fd == -1) { perror("socket"); return 1; }
+    if (server_fd == -1) {
+        perror("socket"); return 1;
+    }
 
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
