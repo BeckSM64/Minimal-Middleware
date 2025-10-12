@@ -11,7 +11,7 @@ int mmw_create_subscriber();
 /**
  * Publish a message
  */
-int mmw_publish();
+int mmw_publish(const char *message);
 
 /**
  * Clean up publishers/subscribers

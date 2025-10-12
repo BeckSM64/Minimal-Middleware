@@ -8,51 +8,33 @@
 #define PORT 5000
 #define BUFFER_SIZE 1024
 
+static int sock_fd = -1;
+static struct sockaddr_in server_addr;
+
 /**
  * Create a publisher
  */
+
 int mmw_create_publisher() {
-    std::cout << "Create publisher" << std::endl;
 
-    // int sock;
-    // struct sockaddr_in server_addr;
-    // char buffer[BUFFER_SIZE];
+    sock_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock_fd == -1) {
+        perror("socket");
+        return -1;
+    }
 
-    // sock = socket(AF_INET, SOCK_STREAM, 0);
-    // if (sock == -1) { perror("socket"); return 1; }
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(PORT);
+    inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr); // TODO: Replace localhost IP with real IP
 
-    // server_addr.sin_family = AF_INET;
-    // server_addr.sin_port = htons(PORT);
-    // inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr);
+    if (connect(sock_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+        perror("connect");
+        close(sock_fd);
+        sock_fd = -1;
+        return -1;
+    }
 
-    // if (connect(sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
-    //     perror("connect");
-    //     return 1;
-    // }
-
-    // std::cout << "Connected to broker!" << std::endl;
-
-    // while (true) {
-    //     std::string msg;
-    //     std::cout << "Enter message: ";
-    //     std::getline(std::cin, msg);
-
-    //     if (msg == "quit") {
-    //         break;
-    //     }
-
-    //     send(sock, msg.c_str(), msg.size(), 0);
-
-    //     memset(buffer, 0, BUFFER_SIZE);
-    //     int n = recv(sock, buffer, BUFFER_SIZE - 1, 0);
-    //     if (n <= 0) break;
-
-    //     std::cout << "Received echo: " << buffer << std::endl;
-    // }
-
-    // close(sock);
-    // std::cout << "Client exiting" << std::endl;
-
+    std::cout << "Connected to broker at " << "127.0.0.1" << ":" << PORT << std::endl;
     return 0;
 }
 
@@ -67,7 +49,26 @@ int mmw_create_subscriber() {
 /**
  * Publish a message
  */
-int mmw_publish() {
-    std::cout << "Publish" << std::endl;
+int mmw_publish(const char *message) {
+    if (sock_fd == -1) {
+        std::cerr << "Publisher not connected.\n";
+        return -1;
+    }
+    send(sock_fd, message, strlen(message), 0);
+    return 0;
+}
+
+/**
+ * Clean up publishers/subscribers
+ */
+int mmw_cleanup() {
+
+    // TODO: Update to a list/map of publishers and iterate through
+    if (sock_fd != -1) {
+        close(sock_fd);
+        sock_fd = -1;
+        std::cout << "Publisher socket closed.\n";
+    }
+
     return 0;
 }
