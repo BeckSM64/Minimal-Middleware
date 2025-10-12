@@ -17,7 +17,7 @@ void test_callback(const char *message) {
 int main() {
 
     // Test API call
-    mmw_create_subscriber(test_callback);
+    mmw_create_subscriber("Test Topic", test_callback);
 
     // Stay alive so subscriber stays up
     while (true) std::this_thread::sleep_for(std::chrono::seconds(1));
