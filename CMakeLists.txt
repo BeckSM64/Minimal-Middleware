@@ -9,9 +9,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_executable(broker ${CMAKE_SOURCE_DIR}/broker/broker.cpp)
 add_executable(client ${CMAKE_SOURCE_DIR}/app/publish.cpp)
 
-# On Linux, link with pthreads if needed for future multi-threading
-# find_package(Threads)
-# if(THREADS_FOUND)
-#     target_link_libraries(broker PRIVATE Threads::Threads)
-#     target_link_libraries(client PRIVATE Threads::Threads)
-# endif()
+# Link
+target_link_libraries(broker pthread)
+target_link_libraries(client pthread)
