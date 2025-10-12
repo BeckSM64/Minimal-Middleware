@@ -1,14 +1,19 @@
 /**
  * Create a publisher
  */
-int create_publisher();
+int mmw_create_publisher();
 
 /**
  * Create a subscriber
  */
-int create_subscriber();
+int mmw_create_subscriber();
 
 /**
  * Publish a message
  */
-int publish();
+int mmw_publish();
+
+/**
+ * Clean up publishers/subscribers
+ */
+int mmw_cleanup();

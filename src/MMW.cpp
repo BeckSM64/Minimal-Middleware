@@ -11,7 +11,7 @@
 /**
  * Create a publisher
  */
-int create_publisher() {
+int mmw_create_publisher() {
     std::cout << "Create publisher" << std::endl;
 
     // int sock;
@@ -59,7 +59,7 @@ int create_publisher() {
 /**
  * Create a subscriber
  */
-int create_subscriber() {
+int mmw_create_subscriber() {
     std::cout << "Create subscriber" << std::endl;
     return 0;
 }
@@ -67,7 +67,7 @@ int create_subscriber() {
 /**
  * Publish a message
  */
-int publish() {
+int mmw_publish() {
     std::cout << "Publish" << std::endl;
     return 0;
 }

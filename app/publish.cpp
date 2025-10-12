@@ -11,8 +11,8 @@
 int main() {
 
     // Test API call
-    create_publisher();
-    publish();
+    mmw_create_publisher();
+    mmw_publish();
 
     int sock;
     struct sockaddr_in server_addr;
