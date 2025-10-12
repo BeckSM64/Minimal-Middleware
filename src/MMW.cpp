@@ -34,15 +34,45 @@ int mmw_create_publisher() {
         return -1;
     }
 
-    std::cout << "Connected to broker at " << "127.0.0.1" << ":" << PORT << std::endl;
+    std::cout << "Publisher connected to broker at " << "127.0.0.1" << ":" << PORT << std::endl;
     return 0;
 }
 
 /**
  * Create a subscriber
  */
-int mmw_create_subscriber() {
-    std::cout << "Create subscriber" << std::endl;
+int mmw_create_subscriber(void (*mmw_callback)(const char*)) {
+
+    // Handle connection to broker
+    sock_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock_fd == -1) {
+        perror("socket");
+        return -1;
+    }
+
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(PORT);
+    inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr); // TODO: Replace localhost IP with real IP
+
+    if (connect(sock_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+        perror("connect");
+        close(sock_fd);
+        sock_fd = -1;
+        return -1;
+    }
+
+    std::cout << "Subscriber connected to broker at " << "127.0.0.1" << ":" << PORT << std::endl;
+
+    // Stay alive, wait for message to trigger callback
+    char buffer[1024];
+    while (true) {
+        memset(buffer, 0, sizeof(buffer));
+        int n = recv(sock_fd, buffer, sizeof(buffer) - 1, 0);
+        if (n <= 0) break; // connection closed or error
+        mmw_callback(buffer); // callback to user code
+    }
+    std::cout << "Subscriber disconnected.\n";
+
     return 0;
 }
 

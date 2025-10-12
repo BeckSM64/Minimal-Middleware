@@ -13,11 +13,14 @@ target_include_directories(mmw PRIVATE ${CMAKE_SOURCE_DIR}/)
 
 # Add executables
 add_executable(broker ${CMAKE_SOURCE_DIR}/broker/broker.cpp)
-add_executable(client ${CMAKE_SOURCE_DIR}/app/publish.cpp)
+add_executable(publish ${CMAKE_SOURCE_DIR}/app/Publish.cpp)
+add_executable(subscribe ${CMAKE_SOURCE_DIR}/app/Subscribe.cpp)
 
 # Application includes
-target_include_directories(client PRIVATE ${CMAKE_SOURCE_DIR}/)
+target_include_directories(publish PRIVATE ${CMAKE_SOURCE_DIR}/)
+target_include_directories(subscribe PRIVATE ${CMAKE_SOURCE_DIR}/)
 
 # Link
 target_link_libraries(broker pthread)
-target_link_libraries(client PRIVATE mmw pthread)
+target_link_libraries(publish PRIVATE mmw pthread)
+target_link_libraries(subscribe PRIVATE mmw pthread)

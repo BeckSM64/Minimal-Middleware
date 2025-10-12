@@ -6,7 +6,7 @@ int mmw_create_publisher();
 /**
  * Create a subscriber
  */
-int mmw_create_subscriber();
+int mmw_create_subscriber(void (*mmw_callback)(const char*));
 
 /**
  * Publish a message
