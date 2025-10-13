@@ -5,6 +5,7 @@
 #include <vector>
 #include <thread>
 #include <mutex>
+#include <algorithm>
 
 #define PORT 5000
 #define BUFFER_SIZE 1024
@@ -109,6 +110,17 @@ void handleClient(int client_fd) {
 
     close(client_fd);
     std::cout << "Client disconnected" << std::endl;
+
+    {
+        std::lock_guard<std::mutex> lock(clientListMutex);
+        connectedClientList.erase(
+            std::remove_if(connectedClientList.begin(), connectedClientList.end(),
+                [client_fd](const ConnectedClient& c) {
+                    return c.socket_fd == client_fd;
+            }),
+            connectedClientList.end()
+        );
+    }
 }
 
 int main() {
