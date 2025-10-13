@@ -12,6 +12,7 @@
 #define PORT 5000
 #define BUFFER_SIZE 1024
 
+static std::string hostname = "127.0.0.1";
 static struct sockaddr_in server_addr;
 static std::atomic<bool> running{false};
 static std::map<std::string, int> publisherTopicToSocketFdMap;
@@ -33,7 +34,7 @@ int mmw_create_publisher(const char* topic) {
 
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(PORT);
-    inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr); // TODO: Replace localhost IP with real IP
+    inet_pton(AF_INET, hostname.c_str(), &server_addr.sin_addr); // TODO: Replace localhost IP with real IP
 
     // Connect to the broker, exit if unsuccesful
     if (connect(sock_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
@@ -58,7 +59,7 @@ int mmw_create_publisher(const char* topic) {
         publisherTopicToSocketFdMap[topic] = sock_fd;
     }
 
-    std::cout << "Publisher connected to broker at " << "127.0.0.1" << ":" << PORT << std::endl;
+    std::cout << "Publisher connected to broker at " << hostname << ":" << PORT << std::endl;
     return 0;
 }
 
@@ -77,7 +78,7 @@ int mmw_create_subscriber(const char* topic, void (*mmw_callback)(const char*)) 
 
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(PORT);
-    inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr); // TODO: Replace localhost IP with real IP
+    inet_pton(AF_INET, hostname.c_str(), &server_addr.sin_addr); // TODO: Replace localhost IP with real IP
 
     // Connect to the broker, exit if unsuccesful
     if (connect(sock_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
@@ -101,7 +102,7 @@ int mmw_create_subscriber(const char* topic, void (*mmw_callback)(const char*)) 
         subscriberTopicToSocketFdMap[topic] = sock_fd;
     }
 
-    std::cout << "Subscriber connected to broker at " << "127.0.0.1" << ":" << PORT << std::endl;
+    std::cout << "Subscriber connected to broker at " << hostname.c_str() << ":" << PORT << std::endl;
 
     // Stay alive, wait for message to trigger callback
     static std::atomic<bool> running{true};
