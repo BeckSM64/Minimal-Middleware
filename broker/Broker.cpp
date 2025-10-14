@@ -100,6 +100,19 @@ void handleClient(int client_fd) {
                     std::cout << " - " << connectedClientList[i].type << std::endl;
                 }
             }
+        } else if (strncmp(buffer, "UNREGISTER:", 11) == 0) {
+            std::string topic = buffer + 11;
+            std::lock_guard<std::mutex> lock(clientListMutex);
+            connectedClientList.erase(
+                std::remove_if(connectedClientList.begin(), connectedClientList.end(),
+                    [&](const ConnectedClient& c) {
+                        return c.topic == topic && c.socket_fd == client_fd;
+                    }
+                ),
+                connectedClientList.end()
+            );
+            continue;
+
         } else {
             // Route message to appropriate subscribers
             std::cout << "This is a normal message: " << buffer << std::endl;

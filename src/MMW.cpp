@@ -171,10 +171,13 @@ int mmw_publish(const char* topic, const char *message) {
  */
 int mmw_cleanup() {
 
-    // Cleanup publishers
+    // Cleanup publisher sockets
     for (auto pair : publisherTopicToSocketFdMap) {
         int sock_fd = pair.second;
         if (sock_fd != -1) {
+            std::string doneMsg = "UNREGISTER:" + pair.first;
+            send(sock_fd, doneMsg.c_str(), doneMsg.size(), 0);
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
             close(sock_fd);
             sock_fd = -1;
             std::cout << "Publisher socket closed for topic: " << pair.first << std::endl;
@@ -195,9 +198,13 @@ int mmw_cleanup() {
         if (t.joinable()) t.join();
     }
 
+    // Wrap up subscriber sockets
     for (auto pair : subscriberTopicToSocketFdMap) {
         int sock_fd = pair.second;
         if (sock_fd != -1) {
+            std::string doneMsg = "UNREGISTER:" + pair.first;
+            send(sock_fd, doneMsg.c_str(), doneMsg.size(), 0);
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
             close(sock_fd);
             sock_fd = -1;
             std::cout << "Subscriber socket closed for topic: " << pair.first << std::endl;
@@ -211,7 +218,6 @@ int mmw_cleanup() {
     for (auto* flag : subscriberRunFlags) {
         delete flag;
     }
-    // TODO: Tell the broker to clear these publishers/subscribers from its datastore
 
     return 0;
 }
