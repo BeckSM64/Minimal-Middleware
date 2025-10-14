@@ -5,6 +5,7 @@
 #include <atomic>
 #include <map>
 #include <mutex>
+#include <vector>
 #include <iostream>
 
 #include "MMW.h"
@@ -18,6 +19,8 @@ static std::atomic<bool> running{false};
 static std::map<std::string, int> publisherTopicToSocketFdMap;
 static std::map<std::string, int> subscriberTopicToSocketFdMap;
 static std::mutex socketListMutex;
+static std::vector<std::thread> subscriberThreads;
+static std::vector<std::atomic<bool>*> subscriberRunFlags;
 
 /**
  * Create a publisher
@@ -108,7 +111,8 @@ int mmw_create_subscriber(const char* topic, void (*mmw_callback)(const char*)) 
     static std::atomic<bool> running{true};
 
     // TODO: Add threads to a list so they can be joined when cleanup is called
-    std::thread([sock_fd, mmw_callback]() {
+    auto runningFlag = new std::atomic<bool>(true);
+    std::thread subscriberThread([sock_fd, runningFlag, mmw_callback]() {
         char buffer[1024];
         while (running) {
             memset(buffer, 0, sizeof(buffer));
@@ -126,7 +130,14 @@ int mmw_create_subscriber(const char* topic, void (*mmw_callback)(const char*)) 
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
         std::cout << "Subscriber listener thread exiting\n";
-    }).detach();
+    });
+
+    // Store the thread and the running flag
+    {
+        std::lock_guard<std::mutex> lock(socketListMutex);
+        subscriberThreads.push_back(std::move(subscriberThread));
+        subscriberRunFlags.push_back(runningFlag);
+    }
 
     return 0;
 }
@@ -171,6 +182,19 @@ int mmw_cleanup() {
     }
 
     // Cleanup subscribers
+    {
+        std::lock_guard<std::mutex> lock(socketListMutex);
+
+        // Set all subscriber running flags to false. We're done with them
+        for (auto* flag : subscriberRunFlags) {
+            *flag = false;
+        }
+    }
+
+    for (auto& t : subscriberThreads) {
+        if (t.joinable()) t.join();
+    }
+
     for (auto pair : subscriberTopicToSocketFdMap) {
         int sock_fd = pair.second;
         if (sock_fd != -1) {
@@ -184,6 +208,9 @@ int mmw_cleanup() {
     publisherTopicToSocketFdMap.clear();
     subscriberTopicToSocketFdMap.clear();
 
+    for (auto* flag : subscriberRunFlags) {
+        delete flag;
+    }
     // TODO: Tell the broker to clear these publishers/subscribers from its datastore
 
     return 0;
