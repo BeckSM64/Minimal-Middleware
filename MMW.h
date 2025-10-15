@@ -1,3 +1,7 @@
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * Initialize library settings
  */
@@ -22,3 +26,7 @@ int mmw_publish(const char* topic, const char *message);
  * Clean up publishers/subscribers
  */
 int mmw_cleanup();
+
+#ifdef __cplusplus
+}
+#endif
