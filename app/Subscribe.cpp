@@ -16,6 +16,9 @@ void test_callback(const char *message) {
 
 int main() {
 
+    // Initialize library settings
+    mmw_initialize("config.yml");
+
     // Test API call
     mmw_create_subscriber("Test Topic", test_callback);
     mmw_create_subscriber("Test Topic 2", test_callback);

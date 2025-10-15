@@ -12,6 +12,9 @@
 
 int main() {
 
+    // Initialize library settings
+    mmw_initialize("config.yml");
+
     // Create publishers
     mmw_create_publisher("Test Topic");
 

@@ -1,4 +1,9 @@
 /**
+ * Initialize library settings
+ */
+int mmw_initialize(const char* configPath);
+
+/**
  * Create a publisher
  */
 int mmw_create_publisher(const char* topic);

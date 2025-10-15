@@ -9,11 +9,12 @@
 #include <iostream>
 
 #include "MMW.h"
+#include "ConfigFileParser.h"
 
-#define PORT 5000
 #define BUFFER_SIZE 1024
 
 static std::string hostname = "127.0.0.1";
+static int brokerPort = 5000;
 static struct sockaddr_in server_addr;
 static std::atomic<bool> running{false};
 static std::map<std::string, int> publisherTopicToSocketFdMap;
@@ -21,6 +22,17 @@ static std::map<std::string, int> subscriberTopicToSocketFdMap;
 static std::mutex socketListMutex;
 static std::vector<std::thread> subscriberThreads;
 static std::vector<std::atomic<bool>*> subscriberRunFlags;
+
+/**
+ * Initialize library settings
+ */
+int mmw_initialize(const char* configPath) {
+    ConfigFileParser configParser;
+    configParser.parseConfigFile(configPath);
+    hostname = configParser.getBrokerIp();
+    brokerPort = configParser.getBrokerPort();
+    return 1;
+}
 
 /**
  * Create a publisher
@@ -36,7 +48,7 @@ int mmw_create_publisher(const char* topic) {
     }
 
     server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(PORT);
+    server_addr.sin_port = htons(brokerPort);
     inet_pton(AF_INET, hostname.c_str(), &server_addr.sin_addr); // TODO: Replace localhost IP with real IP
 
     // Connect to the broker, exit if unsuccesful
@@ -62,7 +74,7 @@ int mmw_create_publisher(const char* topic) {
         publisherTopicToSocketFdMap[topic] = sock_fd;
     }
 
-    std::cout << "Publisher connected to broker at " << hostname << ":" << PORT << std::endl;
+    std::cout << "Publisher connected to broker at " << hostname << ":" << brokerPort << std::endl;
     return 0;
 }
 
@@ -80,7 +92,7 @@ int mmw_create_subscriber(const char* topic, void (*mmw_callback)(const char*)) 
     }
 
     server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(PORT);
+    server_addr.sin_port = htons(brokerPort);
     inet_pton(AF_INET, hostname.c_str(), &server_addr.sin_addr); // TODO: Replace localhost IP with real IP
 
     // Connect to the broker, exit if unsuccesful
@@ -105,7 +117,7 @@ int mmw_create_subscriber(const char* topic, void (*mmw_callback)(const char*)) 
         subscriberTopicToSocketFdMap[topic] = sock_fd;
     }
 
-    std::cout << "Subscriber connected to broker at " << hostname.c_str() << ":" << PORT << std::endl;
+    std::cout << "Subscriber connected to broker at " << hostname.c_str() << ":" << brokerPort << std::endl;
 
     // Stay alive, wait for message to trigger callback
     static std::atomic<bool> running{true};
