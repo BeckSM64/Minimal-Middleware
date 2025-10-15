@@ -19,7 +19,7 @@ int main() {
     mmw_create_publisher("Test Topic");
 
     // Publish test message
-    mmw_publish("Test Topic", "This is a test message for Test Topic\n");
+    mmw_publish("Test Topic", "This is a test message for Test Topic");
 
     // Clean up publishers
     mmw_cleanup();

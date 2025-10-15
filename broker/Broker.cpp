@@ -11,6 +11,11 @@
 #include <sys/socket.h> // MSG_NOSIGNAL
 #include <errno.h>
 
+#include "MmwMessage.h"
+#include "IMmwMessageSerializer.h"
+#include "JsonSerializer.h"
+
+// TODO: Overwrite with config file
 #define PORT 5000
 #define BUFFER_SIZE 1024
 
@@ -18,11 +23,6 @@ struct ConnectedClient {
     int socket_fd;
     std::string type;
     std::string topic;
-};
-
-struct ParsedMessage {
-    std::string topic;
-    std::string message;
 };
 
 static std::vector<ConnectedClient> connectedClientList;
@@ -36,36 +36,16 @@ static std::mutex threadListMutex;
 static int server_fd = -1;
 static std::atomic<bool> running(true);
 
-// --- helper: parse message ---
-ParsedMessage parseMessage(const char* received) {
-    ParsedMessage result;
-    if (!received) return result;
-    std::string str(received);
-    size_t newlinePos = str.find('\n');
-    if (newlinePos == std::string::npos) {
-        // invalid format -> return empty topic/message
-        return result;
-    }
-    std::string topicPart = str.substr(0, newlinePos);
-    std::string messagePart = str.substr(newlinePos + 1);
-
-    if (topicPart.find("TOPIC:") == 0)
-        result.topic = topicPart.substr(6);
-    if (messagePart.find("MESSAGE:") == 0)
-        result.message = messagePart.substr(8);
-
-    return result;
-}
+// Setup serializer
+static IMmwMessageSerializer* g_serializer = nullptr;
 
 // --- helper: safely route message to subscribers ---
-void routeMessageToSubscribers(const std::string& topic, const std::string& message) {
-
-    // Check to make sure there's a topic before attempting to route
+void routeMessageToSubscribers(const std::string& topic, const MmwMessage& msg) {
     if (topic.empty()) {
         return;
     }
 
-    // copy targets under lock, then send outside lock to avoid blocking other ops
+    // Copy subscriber sockets safely
     std::vector<int> targets;
     {
         std::lock_guard<std::mutex> lock(clientListMutex);
@@ -76,22 +56,20 @@ void routeMessageToSubscribers(const std::string& topic, const std::string& mess
         }
     }
 
-    for (int fd : targets) {
+    // Serialize once
+    std::string serialized = g_serializer->serialize(msg) + "\n";
 
-        // MSG_NOSIGNAL works on Linux but won't on other platforms like Linux
-        // TODO: Note this line as it may need to be updated in the future for other platforms
-        ssize_t n = send(fd, message.c_str(), message.size(), MSG_NOSIGNAL);
+    // Send to all targets
+    for (int fd : targets) {
+        ssize_t n = send(fd, serialized.c_str(), serialized.size(), MSG_NOSIGNAL);
         if (n < 0) {
-            // Likely client disconnected; remove from list
             int err = errno;
-            std::cerr << "send to subscriber fd=" << fd << " failed: " << strerror(err) << std::endl;
+            std::cerr << "send to subscriber fd=" << fd
+                      << " failed: " << strerror(err) << std::endl;
             std::lock_guard<std::mutex> lock(clientListMutex);
             connectedClientList.erase(
                 std::remove_if(connectedClientList.begin(), connectedClientList.end(),
-                    [fd](const ConnectedClient& c){
-                        return c.socket_fd == fd;
-                    }
-                ),
+                    [fd](const ConnectedClient& c) { return c.socket_fd == fd; }),
                 connectedClientList.end()
             );
             close(fd);
@@ -113,6 +91,7 @@ void removeClientByFd(int client_fd) {
 
 void handleClient(int client_fd) {
     char buffer[BUFFER_SIZE];
+    std::string incomingBuffer;
 
     while (running) {
         memset(buffer, 0, BUFFER_SIZE);
@@ -120,80 +99,55 @@ void handleClient(int client_fd) {
         if (n <= 0) {
             if (n == 0) {
                 // orderly shutdown from peer
-                // std::cout << "recv returned 0 for fd " << client_fd << std::endl;
+            } else if (errno == EINTR) {
+                continue;
             } else {
-                int err = errno;
-                if (err == EINTR) {
-                    continue;
-                }
-                // error; log then break
-                std::cerr << "recv error on fd " << client_fd << ": " << strerror(err) << std::endl;
+                std::cerr << "recv error on fd " << client_fd << ": " << strerror(errno) << std::endl;
             }
             break;
         }
 
-        buffer[n] = '\0';
+        incomingBuffer.append(buffer, n);
 
-        // Publisher/Subscriber registration
-        if (strncmp(buffer, "PUB_REGISTER:", 13) == 0 || strncmp(buffer, "SUB_REGISTER:", 13) == 0) {
+        size_t pos;
+        while ((pos = incomingBuffer.find('\n')) != std::string::npos) {
+            std::string oneMsg = incomingBuffer.substr(0, pos);
+            incomingBuffer.erase(0, pos + 1);
 
-            std::string connectionTypeAsString = (strncmp(buffer, "PUB", 3) == 0) ? "publisher" : "subscriber";
-            std::string topic = buffer + 13;
+            try {
+                MmwMessage msg = g_serializer->deserialize(oneMsg);
 
-            ConnectedClient newClient;
-            newClient.socket_fd = client_fd;
-            newClient.type = connectionTypeAsString;
-            newClient.topic = topic;
-
-            {
-                std::lock_guard<std::mutex> lock(clientListMutex);
-                // avoid duplicates for same fd+topic+type
-                bool exists = false;
-                for (auto &c : connectedClientList) {
-                    if (c.socket_fd == client_fd && c.topic == topic && c.type == connectionTypeAsString) {
-                        exists = true; break;
+                if (msg.type == "register") {
+                    ConnectedClient newClient{client_fd, msg.payload, msg.topic};
+                    {
+                        std::lock_guard<std::mutex> lock(clientListMutex);
+                        connectedClientList.push_back(newClient);
                     }
+                    std::cout << "Registered " << msg.payload
+                              << " for topic " << msg.topic << " (fd=" << client_fd << ")\n";
+                } 
+                else if (msg.type == "unregister") {
+                    std::lock_guard<std::mutex> lock(clientListMutex);
+                    connectedClientList.erase(
+                        std::remove_if(
+                            connectedClientList.begin(),
+                            connectedClientList.end(),
+                            [&](const ConnectedClient& c) {
+                                return c.socket_fd == client_fd && c.topic == msg.topic;
+                            }),
+                        connectedClientList.end());
+                    std::cout << "Unregistered client fd=" << client_fd << " topic=" << msg.topic << std::endl;
+                } 
+                else if (msg.type == "publish") {
+                    routeMessageToSubscribers(msg.topic, msg);
                 }
-                if (!exists) {
-                    connectedClientList.push_back(newClient);
-                }
-                std::cout << "Client list updated: " << std::endl;
-                for (int i = 0; i < (int)connectedClientList.size(); ++i) {
-                    std::cout << " - " << connectedClientList[i].topic << " (" << connectedClientList[i].type << ")" << std::endl;
-                }
+
+            } catch (const std::exception& e) {
+                std::cerr << "Failed to deserialize message: " << e.what() << std::endl;
             }
-
-            continue;
-        }
-
-        // Unregister publishers/subscribers that have cleaned up
-        if (strncmp(buffer, "UNREGISTER:", 11) == 0) {
-            std::string topic = buffer + 11;
-            {
-                std::lock_guard<std::mutex> lock(clientListMutex);
-                connectedClientList.erase(
-                    std::remove_if(connectedClientList.begin(), connectedClientList.end(),
-                        [&](const ConnectedClient& c) {
-                            return c.topic == topic && c.socket_fd == client_fd;
-                        }
-                    ),
-                    connectedClientList.end()
-                );
-            }
-            std::cout << "Client fd=" << client_fd << " unregistered topic=" << topic << std::endl;
-            continue;
-        }
-
-        // Normal message, parse and route
-        ParsedMessage pm = parseMessage(buffer);
-        if (pm.topic.empty()) {
-            std::cerr << "Received malformed message from fd=" << client_fd << ": " << buffer << std::endl;
-        } else {
-            routeMessageToSubscribers(pm.topic, pm.message);
         }
     }
 
-    // cleanup for this client
     close(client_fd);
     removeClientByFd(client_fd);
     std::cout << "Client disconnected (fd=" << client_fd << ")\n";
@@ -211,6 +165,10 @@ void handleSignal(int signum) {
 int main() {
     signal(SIGINT, handleSignal);
     signal(SIGTERM, handleSignal);
+
+    // Serializer initialization
+    static JsonSerializer serializer;
+    g_serializer = &serializer;
 
     struct sockaddr_in address;
     socklen_t addrlen = sizeof(address);

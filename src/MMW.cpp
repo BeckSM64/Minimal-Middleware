@@ -10,6 +10,9 @@
 
 #include "MMW.h"
 #include "ConfigFileParser.h"
+#include "IMmwMessageSerializer.h"
+#include "JsonSerializer.h"
+#include <fcntl.h>
 
 #define BUFFER_SIZE 1024
 
@@ -22,6 +25,7 @@ static std::map<std::string, int> subscriberTopicToSocketFdMap;
 static std::mutex socketListMutex;
 static std::vector<std::thread> subscriberThreads;
 static std::vector<std::atomic<bool>*> subscriberRunFlags;
+static IMmwMessageSerializer* g_serializer = nullptr;
 
 /**
  * Initialize library settings
@@ -31,17 +35,18 @@ int mmw_initialize(const char* configPath) {
     configParser.parseConfigFile(configPath);
     hostname = configParser.getBrokerIp();
     brokerPort = configParser.getBrokerPort();
+
+    // Initialize the serializer
+    g_serializer = new JsonSerializer();
+
     return 1;
 }
 
 /**
  * Create a publisher
  */
-
 int mmw_create_publisher(const char* topic) {
-
-    int sock_fd = -1;
-    sock_fd = socket(AF_INET, SOCK_STREAM, 0);
+    int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (sock_fd == -1) {
         perror("socket");
         return -1;
@@ -49,26 +54,24 @@ int mmw_create_publisher(const char* topic) {
 
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(brokerPort);
-    inet_pton(AF_INET, hostname.c_str(), &server_addr.sin_addr); // TODO: Replace localhost IP with real IP
+    inet_pton(AF_INET, hostname.c_str(), &server_addr.sin_addr);
 
-    // Connect to the broker, exit if unsuccesful
     if (connect(sock_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         perror("connect");
         close(sock_fd);
-        sock_fd = -1;
         return -1;
-
-    } else { // if successful, send a message to register the topic
-        std::string registration = "PUB_REGISTER:" + std::string(topic);
-        send(sock_fd, registration.c_str(), registration.size(), 0);
-
-        // TODO: THIS IS A TEMPORARY HACK TO FIX MESSAGE CONCATENATION ISSUE
-        // When updating messaging system to be more robust, send fixed length message size
-        // along with the message
-        std::this_thread::sleep_for(std::chrono::milliseconds(50)); // give broker time
     }
 
-    // Add socket_fd to global list
+    // JSON registration message for publisher
+    MmwMessage msg;
+    msg.type = "register";
+    msg.topic = topic;
+    msg.payload = "publisher";
+
+    std::string registrationData = g_serializer->serialize(msg) + "\n";
+    send(sock_fd, registrationData.c_str(), registrationData.size(), 0);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
     {
         std::lock_guard<std::mutex> lock(socketListMutex);
         publisherTopicToSocketFdMap[topic] = sock_fd;
@@ -82,10 +85,7 @@ int mmw_create_publisher(const char* topic) {
  * Create a subscriber
  */
 int mmw_create_subscriber(const char* topic, void (*mmw_callback)(const char*)) {
-
-    // Handle connection to broker
-    int sock_fd = -1;
-    sock_fd = socket(AF_INET, SOCK_STREAM, 0);
+    int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (sock_fd == -1) {
         perror("socket");
         return -1;
@@ -93,88 +93,80 @@ int mmw_create_subscriber(const char* topic, void (*mmw_callback)(const char*)) 
 
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(brokerPort);
-    inet_pton(AF_INET, hostname.c_str(), &server_addr.sin_addr); // TODO: Replace localhost IP with real IP
+    inet_pton(AF_INET, hostname.c_str(), &server_addr.sin_addr);
 
-    // Connect to the broker, exit if unsuccesful
     if (connect(sock_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         perror("connect");
         close(sock_fd);
-        sock_fd = -1;
         return -1;
-    } else { // if successful, send a message to register the topic
-        std::string registration = "SUB_REGISTER:" + std::string(topic);
-        send(sock_fd, registration.c_str(), registration.size(), 0);
-
-        // TODO: THIS IS A TEMPORARY HACK TO FIX MESSAGE CONCATENATION ISSUE
-        // When updating messaging system to be more robust, send fixed length message size
-        // along with the message
-        std::this_thread::sleep_for(std::chrono::milliseconds(50)); // give broker time
     }
 
-    // Add socket_fd to global list
-    {
-        std::lock_guard<std::mutex> lock(socketListMutex);
-        subscriberTopicToSocketFdMap[topic] = sock_fd;
-    }
+    // JSON registration message for subscriber
+    MmwMessage msg;
+    msg.type = "register";
+    msg.topic = topic;
+    msg.payload = "subscriber";
 
-    std::cout << "Subscriber connected to broker at " << hostname.c_str() << ":" << brokerPort << std::endl;
+    std::string registrationData = g_serializer->serialize(msg) + "\n";
+    send(sock_fd, registrationData.c_str(), registrationData.size(), 0);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-    // Stay alive, wait for message to trigger callback
-    static std::atomic<bool> running{true};
-
-    // TODO: Add threads to a list so they can be joined when cleanup is called
     auto runningFlag = new std::atomic<bool>(true);
-    std::thread subscriberThread([sock_fd, runningFlag, mmw_callback]() {
-        char buffer[1024];
-        while (running) {
+    std::thread t([sock_fd, runningFlag, mmw_callback]() {
+        char buffer[BUFFER_SIZE];
+        std::string incomingBuffer;
+
+        while (*runningFlag) {
             memset(buffer, 0, sizeof(buffer));
-            int n = recv(sock_fd, buffer, sizeof(buffer) - 1, MSG_DONTWAIT); // non-blocking
-
-            // TODO: Do proper cleanup if this errors instead of just breaking
+            int n = recv(sock_fd, buffer, sizeof(buffer) - 1, 0);
             if (n > 0) {
-                mmw_callback(buffer);
+                incomingBuffer.append(buffer, n);
+                size_t pos;
+                while ((pos = incomingBuffer.find('\n')) != std::string::npos) {
+                    std::string oneMsg = incomingBuffer.substr(0, pos);
+                    incomingBuffer.erase(0, pos + 1);
+                    try {
+                        MmwMessage msg = g_serializer->deserialize(oneMsg);
+                        if (msg.type == "publish")
+                            mmw_callback(msg.payload.c_str());
+                    } catch (const std::exception& e) {
+                        std::cerr << "Subscriber failed to deserialize: " << e.what() << std::endl;
+                    }
+                }
             } else if (n == 0) {
-                break;
-            } else if (errno != EWOULDBLOCK && errno != EAGAIN) {
-                break;
+                break; // broker closed connection
+            } else {
+                std::this_thread::sleep_for(std::chrono::milliseconds(5));
             }
-
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
+
+        close(sock_fd);
         std::cout << "Subscriber listener thread exiting\n";
     });
 
-    // Store the thread and the running flag
-    {
-        std::lock_guard<std::mutex> lock(socketListMutex);
-        subscriberThreads.push_back(std::move(subscriberThread));
-        subscriberRunFlags.push_back(runningFlag);
-    }
-
+    subscriberThreads.push_back(std::move(t));
+    subscriberRunFlags.push_back(runningFlag);
     return 0;
 }
 
 /**
  * Publish a message
  */
-int mmw_publish(const char* topic, const char *message) {
-
+int mmw_publish(const char* topic, const char* payload) {
     auto it = publisherTopicToSocketFdMap.find(topic);
     if (it == publisherTopicToSocketFdMap.end()) {
-        std::cerr << "Publisher not connected for topic: " << topic << std::endl;
+        std::cerr << "No publisher socket for topic: " << topic << std::endl;
         return -1;
     }
+
     int sock_fd = it->second;
+    MmwMessage msg;
+    msg.topic = topic;
+    msg.payload = payload;
+    msg.type = "publish";
 
-    if (sock_fd == -1) {
-        std::cerr << "Publisher not connected.\n";
-        return -1;
-    }
-
-    // TODO: Should publishes be non blocking?
-    // Construct message, formatted as: TOPIC:topicAsString\nMESSAGE:messageAsString
-    std::string formatted = "TOPIC:" + std::string(topic) + "\nMESSAGE:" + std::string(message);
-    send(sock_fd, formatted.c_str(), strlen(formatted.c_str()), 0);
+    std::string serialized = g_serializer->serialize(msg) + "\n";
+    send(sock_fd, serialized.c_str(), serialized.size(), 0);
     return 0;
 }
 
@@ -184,51 +176,65 @@ int mmw_publish(const char* topic, const char *message) {
 int mmw_cleanup() {
 
     // Cleanup publisher sockets
-    for (auto pair : publisherTopicToSocketFdMap) {
+    for (auto& pair : publisherTopicToSocketFdMap) {
         int sock_fd = pair.second;
         if (sock_fd != -1) {
-            std::string doneMsg = "UNREGISTER:" + pair.first;
+            MmwMessage msg;
+            msg.type = "unregister";
+            msg.topic = pair.first;
+            msg.payload = "";
+
+            std::string doneMsg = g_serializer->serialize(msg) + "\n";
             send(sock_fd, doneMsg.c_str(), doneMsg.size(), 0);
             std::this_thread::sleep_for(std::chrono::milliseconds(20));
             close(sock_fd);
-            sock_fd = -1;
             std::cout << "Publisher socket closed for topic: " << pair.first << std::endl;
         }
     }
+    publisherTopicToSocketFdMap.clear();
 
-    // Cleanup subscribers
+    // Stop subscriber threads
     {
         std::lock_guard<std::mutex> lock(socketListMutex);
-
-        // Set all subscriber running flags to false. We're done with them
         for (auto* flag : subscriberRunFlags) {
             *flag = false;
         }
     }
 
+    // Wait for threads to finish
     for (auto& t : subscriberThreads) {
         if (t.joinable()) t.join();
     }
+    subscriberThreads.clear();
 
-    // Wrap up subscriber sockets
-    for (auto pair : subscriberTopicToSocketFdMap) {
+    // Close subscriber sockets
+    for (auto& pair : subscriberTopicToSocketFdMap) {
         int sock_fd = pair.second;
         if (sock_fd != -1) {
-            std::string doneMsg = "UNREGISTER:" + pair.first;
+            MmwMessage msg;
+            msg.type = "unregister";
+            msg.topic = pair.first;
+            msg.payload = "";
+
+            std::string doneMsg = g_serializer->serialize(msg) + "\n";
             send(sock_fd, doneMsg.c_str(), doneMsg.size(), 0);
             std::this_thread::sleep_for(std::chrono::milliseconds(20));
             close(sock_fd);
-            sock_fd = -1;
             std::cout << "Subscriber socket closed for topic: " << pair.first << std::endl;
         }
     }
-
-    // Clear the maps
-    publisherTopicToSocketFdMap.clear();
     subscriberTopicToSocketFdMap.clear();
 
+    // Cleanup running flags
     for (auto* flag : subscriberRunFlags) {
         delete flag;
+    }
+    subscriberRunFlags.clear();
+
+    // Cleanup serializer
+    if (g_serializer) {
+        delete g_serializer;
+        g_serializer = nullptr;
     }
 
     return 0;
