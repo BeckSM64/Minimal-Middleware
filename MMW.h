@@ -2,30 +2,35 @@
 extern "C" {
 #endif
 
+typedef enum {
+    MMW_OK,
+    MMW_ERROR
+} MmwResult;
+
 /**
  * Initialize library settings
  */
-int mmw_initialize(const char* configPath);
+MmwResult mmw_initialize(const char* configPath);
 
 /**
  * Create a publisher
  */
-int mmw_create_publisher(const char* topic);
+MmwResult mmw_create_publisher(const char* topic);
 
 /**
  * Create a subscriber
  */
-int mmw_create_subscriber(const char* topic, void (*mmw_callback)(const char*));
+MmwResult mmw_create_subscriber(const char* topic, void (*mmw_callback)(const char*));
 
 /**
  * Publish a message
  */
-int mmw_publish(const char* topic, const char *message);
+MmwResult mmw_publish(const char* topic, const char *message);
 
 /**
  * Clean up publishers/subscribers
  */
-int mmw_cleanup();
+MmwResult mmw_cleanup();
 
 #ifdef __cplusplus
 }

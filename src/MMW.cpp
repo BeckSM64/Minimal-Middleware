@@ -31,7 +31,7 @@ static IMmwMessageSerializer* g_serializer = nullptr;
 /**
  * Initialize library settings
  */
-int mmw_initialize(const char* configPath) {
+MmwResult mmw_initialize(const char* configPath) {
     ConfigFileParser configParser;
     configParser.parseConfigFile(configPath);
     hostname = configParser.getBrokerIp();
@@ -40,17 +40,17 @@ int mmw_initialize(const char* configPath) {
     // Initialize the serializer
     g_serializer = new JsonSerializer();
 
-    return 1;
+    return MMW_OK;
 }
 
 /**
  * Create a publisher
  */
-int mmw_create_publisher(const char* topic) {
+MmwResult mmw_create_publisher(const char* topic) {
     int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (sock_fd == -1) {
         perror("socket");
-        return -1;
+        return MMW_ERROR;
     }
 
     server_addr.sin_family = AF_INET;
@@ -60,7 +60,7 @@ int mmw_create_publisher(const char* topic) {
     if (connect(sock_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         perror("connect");
         close(sock_fd);
-        return -1;
+        return MMW_ERROR;
     }
 
     // JSON registration message for publisher
@@ -79,17 +79,17 @@ int mmw_create_publisher(const char* topic) {
     }
 
     spdlog::info("Publisher connected to broker at {}:{}", hostname, std::to_string(brokerPort));
-    return 0;
+    return MMW_OK;
 }
 
 /**
  * Create a subscriber
  */
-int mmw_create_subscriber(const char* topic, void (*mmw_callback)(const char*)) {
+MmwResult mmw_create_subscriber(const char* topic, void (*mmw_callback)(const char*)) {
     int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (sock_fd == -1) {
         perror("socket");
-        return -1;
+        return MMW_ERROR;
     }
 
     server_addr.sin_family = AF_INET;
@@ -99,7 +99,7 @@ int mmw_create_subscriber(const char* topic, void (*mmw_callback)(const char*)) 
     if (connect(sock_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         perror("connect");
         close(sock_fd);
-        return -1;
+        return MMW_ERROR;
     }
 
     // JSON registration message for subscriber
@@ -147,17 +147,17 @@ int mmw_create_subscriber(const char* topic, void (*mmw_callback)(const char*)) 
 
     subscriberThreads.push_back(std::move(t));
     subscriberRunFlags.push_back(runningFlag);
-    return 0;
+    return MMW_OK;
 }
 
 /**
  * Publish a message
  */
-int mmw_publish(const char* topic, const char* payload) {
+MmwResult mmw_publish(const char* topic, const char* payload) {
     auto it = publisherTopicToSocketFdMap.find(topic);
     if (it == publisherTopicToSocketFdMap.end()) {
         spdlog::error("No publisher socket for topic: {}", topic);
-        return -1;
+        return MMW_ERROR;
     }
 
     int sock_fd = it->second;
@@ -168,13 +168,13 @@ int mmw_publish(const char* topic, const char* payload) {
 
     std::string serialized = g_serializer->serialize(msg) + "\n";
     send(sock_fd, serialized.c_str(), serialized.size(), 0);
-    return 0;
+    return MMW_OK;
 }
 
 /**
  * Clean up publishers/subscribers
  */
-int mmw_cleanup() {
+MmwResult mmw_cleanup() {
 
     // Cleanup publisher sockets
     for (auto& pair : publisherTopicToSocketFdMap) {
@@ -238,5 +238,5 @@ int mmw_cleanup() {
         g_serializer = nullptr;
     }
 
-    return 0;
+    return MMW_OK;
 }
