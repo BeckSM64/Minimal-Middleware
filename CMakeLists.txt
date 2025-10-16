@@ -33,10 +33,12 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(spdlog)
 
+# Add BUILD_SHARED_LIBS option
+option(BUILD_SHARED_LIBS "Build as shared library" ON)
+
 # Create the mw library
 add_library(
     mmw
-    STATIC
     ${CMAKE_SOURCE_DIR}/src/MMW.cpp
     ${CMAKE_SOURCE_DIR}/src/ConfigFileParser.cpp
     ${CMAKE_SOURCE_DIR}/src/serialization/JsonSerializer.cpp
