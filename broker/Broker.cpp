@@ -1,7 +1,6 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <cstring>
-#include <iostream>
 #include <vector>
 #include <thread>
 #include <mutex>
@@ -10,6 +9,8 @@
 #include <signal.h>
 #include <sys/socket.h> // MSG_NOSIGNAL
 #include <errno.h>
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/basic_file_sink.h>
 
 #include "MmwMessage.h"
 #include "IMmwMessageSerializer.h"
@@ -64,8 +65,7 @@ void routeMessageToSubscribers(const std::string& topic, const MmwMessage& msg) 
         ssize_t n = send(fd, serialized.c_str(), serialized.size(), MSG_NOSIGNAL);
         if (n < 0) {
             int err = errno;
-            std::cerr << "send to subscriber fd=" << fd
-                      << " failed: " << strerror(err) << std::endl;
+            spdlog::error("send to subscriber fd={} failed {}", fd, err);
             std::lock_guard<std::mutex> lock(clientListMutex);
             connectedClientList.erase(
                 std::remove_if(connectedClientList.begin(), connectedClientList.end(),
@@ -102,7 +102,7 @@ void handleClient(int client_fd) {
             } else if (errno == EINTR) {
                 continue;
             } else {
-                std::cerr << "recv error on fd " << client_fd << ": " << strerror(errno) << std::endl;
+                spdlog::error("recv error on fd {}:{}", client_fd, strerror(errno));
             }
             break;
         }
@@ -123,8 +123,7 @@ void handleClient(int client_fd) {
                         std::lock_guard<std::mutex> lock(clientListMutex);
                         connectedClientList.push_back(newClient);
                     }
-                    std::cout << "Registered " << msg.payload
-                              << " for topic " << msg.topic << " (fd=" << client_fd << ")\n";
+                    spdlog::info("Registered {} for topic {} (fd={})", msg.payload, msg.topic, client_fd);
                 } 
                 else if (msg.type == "unregister") {
                     std::lock_guard<std::mutex> lock(clientListMutex);
@@ -136,25 +135,25 @@ void handleClient(int client_fd) {
                                 return c.socket_fd == client_fd && c.topic == msg.topic;
                             }),
                         connectedClientList.end());
-                    std::cout << "Unregistered client fd=" << client_fd << " topic=" << msg.topic << std::endl;
+                    spdlog::info("Unregistered client fd={} topic={}", client_fd, msg.topic);
                 } 
                 else if (msg.type == "publish") {
                     routeMessageToSubscribers(msg.topic, msg);
                 }
 
             } catch (const std::exception& e) {
-                std::cerr << "Failed to deserialize message: " << e.what() << std::endl;
+                spdlog::error("Failed to deserialize message: {}", e.what());
             }
         }
     }
 
     close(client_fd);
     removeClientByFd(client_fd);
-    std::cout << "Client disconnected (fd=" << client_fd << ")\n";
+    spdlog::info("Client disconnected (fd={})", client_fd);
 }
 
 void handleSignal(int signum) {
-    std::cout << "\nSignal received (" << signum << "), shutting down broker..." << std::endl;
+    spdlog::info("Signal received ({}), shutting down broker...", signum);
     running = false;
     if (server_fd != -1) {
         close(server_fd); // cause accept() to fail and break loop
@@ -198,7 +197,7 @@ int main() {
         perror("listen"); return 1;
     }
 
-    std::cout << "Broker listening on port " << PORT << std::endl;
+    spdlog::info("Broker listening on port ", PORT);
 
     while (running) {
         struct sockaddr_in client_addr;
@@ -215,9 +214,7 @@ int main() {
             continue;
         }
 
-        std::cout << "Client connected from "
-                  << inet_ntoa(client_addr.sin_addr) << ":" << ntohs(client_addr.sin_port)
-                  << " (fd=" << client_fd << ")\n";
+        spdlog::info("Client connected from {}:{}(fd={})", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port), client_fd);
 
         // spawn thread and track it so we can join on shutdown
         {
@@ -249,6 +246,6 @@ int main() {
         server_fd = -1;
     }
 
-    std::cout << "Broker exited cleanly\n";
+    spdlog::info("Broker exited cleanly");
     return 0;
 }

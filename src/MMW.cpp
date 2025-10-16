@@ -6,13 +6,14 @@
 #include <map>
 #include <mutex>
 #include <vector>
-#include <iostream>
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/basic_file_sink.h>
+#include <fcntl.h>
 
 #include "MMW.h"
 #include "ConfigFileParser.h"
 #include "IMmwMessageSerializer.h"
 #include "JsonSerializer.h"
-#include <fcntl.h>
 
 #define BUFFER_SIZE 1024
 
@@ -77,7 +78,7 @@ int mmw_create_publisher(const char* topic) {
         publisherTopicToSocketFdMap[topic] = sock_fd;
     }
 
-    std::cout << "Publisher connected to broker at " << hostname << ":" << brokerPort << std::endl;
+    spdlog::info("Publisher connected to broker at {}:{}", hostname, std::to_string(brokerPort));
     return 0;
 }
 
@@ -130,7 +131,7 @@ int mmw_create_subscriber(const char* topic, void (*mmw_callback)(const char*)) 
                         if (msg.type == "publish")
                             mmw_callback(msg.payload.c_str());
                     } catch (const std::exception& e) {
-                        std::cerr << "Subscriber failed to deserialize: " << e.what() << std::endl;
+                        spdlog::error("Subscriber failed to deserialize: {}", e.what());
                     }
                 }
             } else if (n == 0) {
@@ -141,7 +142,7 @@ int mmw_create_subscriber(const char* topic, void (*mmw_callback)(const char*)) 
         }
 
         close(sock_fd);
-        std::cout << "Subscriber listener thread exiting\n";
+        spdlog::info("Subscriber listener thread exiting");
     });
 
     subscriberThreads.push_back(std::move(t));
@@ -155,7 +156,7 @@ int mmw_create_subscriber(const char* topic, void (*mmw_callback)(const char*)) 
 int mmw_publish(const char* topic, const char* payload) {
     auto it = publisherTopicToSocketFdMap.find(topic);
     if (it == publisherTopicToSocketFdMap.end()) {
-        std::cerr << "No publisher socket for topic: " << topic << std::endl;
+        spdlog::error("No publisher socket for topic: {}", topic);
         return -1;
     }
 
@@ -188,7 +189,7 @@ int mmw_cleanup() {
             send(sock_fd, doneMsg.c_str(), doneMsg.size(), 0);
             std::this_thread::sleep_for(std::chrono::milliseconds(20));
             close(sock_fd);
-            std::cout << "Publisher socket closed for topic: " << pair.first << std::endl;
+            spdlog::info("Publisher socket closed for topic: {}", pair.first);
         }
     }
     publisherTopicToSocketFdMap.clear();
@@ -220,7 +221,7 @@ int mmw_cleanup() {
             send(sock_fd, doneMsg.c_str(), doneMsg.size(), 0);
             std::this_thread::sleep_for(std::chrono::milliseconds(20));
             close(sock_fd);
-            std::cout << "Subscriber socket closed for topic: " << pair.first << std::endl;
+            spdlog::info("Subscriber scoket closed for topic: {}", pair.first);
         }
     }
     subscriberTopicToSocketFdMap.clear();

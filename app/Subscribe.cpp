@@ -1,9 +1,10 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <cstring>
-#include <iostream>
 #include <thread>
 #include <chrono>
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/basic_file_sink.h>
 
 #include "MMW.h"
 
@@ -11,7 +12,7 @@
 #define BUFFER_SIZE 1024
 
 void test_callback(const char *message) {
-    std::cout << "Got message in callback: " << message << std::endl;
+    spdlog::info("Got message in callback: {}", message);
 }
 
 int main() {

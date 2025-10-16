@@ -1,5 +1,6 @@
 #include <yaml-cpp/yaml.h>
-#include <iostream>
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/basic_file_sink.h>
 #include "ConfigFileParser.h"
 
 bool ConfigFileParser::parseConfigFile(const std::string &filename) {
@@ -8,17 +9,12 @@ bool ConfigFileParser::parseConfigFile(const std::string &filename) {
         if (config["broker"]) {
             brokerIp = config["broker"]["ip"].as<std::string>();
             brokerPort = config["broker"]["port"].as<int>();
-            std::cout << "Successfully parsed config file\n"
-                << "Broker IP: "
-                << brokerIp
-                << "\n"
-                << "Broker Port: "
-                << brokerPort
-                << "\n"
-                << std::endl;
+            spdlog::info("Successfully parsed config file");
+            spdlog::info("Broker IP:{}", brokerIp);
+            spdlog::info("Broker Port:{}", brokerPort);
         }
     } catch (const YAML::Exception&e) {
-        std::cerr << "Failed to load config: " << e.what() << "\n";
+        spdlog::error("Failed to load config: {}", e.what());
         return false;
     }
     return true;
