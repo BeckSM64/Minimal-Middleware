@@ -1,14 +1,4 @@
-#include <arpa/inet.h>
-#include <unistd.h>
-#include <cstring>
-#include <thread>
-#include <chrono>
-#include <iostream>
-
 #include "MMW.h"
-
-#define PORT 5000
-#define BUFFER_SIZE 1024
 
 int main() {
 

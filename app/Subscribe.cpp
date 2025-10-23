@@ -1,15 +1,7 @@
-#include <arpa/inet.h>
-#include <unistd.h>
-#include <cstring>
-#include <thread>
-#include <chrono>
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/basic_file_sink.h>
 
 #include "MMW.h"
-
-#define PORT 5000
-#define BUFFER_SIZE 1024
 
 void test_callback(const char *message) {
     spdlog::info("Got message in callback: {}", message);
