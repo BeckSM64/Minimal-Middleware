@@ -55,6 +55,8 @@ add_executable(publish ${CMAKE_SOURCE_DIR}/app/Publish.cpp)
 add_executable(subscribe ${CMAKE_SOURCE_DIR}/app/Subscribe.cpp)
 add_executable(publish_c ${CMAKE_SOURCE_DIR}/app/Publish.c)
 add_executable(subscribe_c ${CMAKE_SOURCE_DIR}/app/Subscribe.c)
+add_executable(publish_raw ${CMAKE_SOURCE_DIR}/app/PublishRaw.cpp)
+add_executable(subscribe_raw ${CMAKE_SOURCE_DIR}/app/SubscribeRaw.cpp)
 
 # Application includes
 target_include_directories(publish PRIVATE ${CMAKE_SOURCE_DIR}/)
@@ -62,6 +64,8 @@ target_include_directories(subscribe PRIVATE ${CMAKE_SOURCE_DIR}/)
 target_include_directories(broker PRIVATE ${CMAKE_SOURCE_DIR}/includes/)
 target_include_directories(publish_c PRIVATE ${CMAKE_SOURCE_DIR}/)
 target_include_directories(subscribe_c PRIVATE ${CMAKE_SOURCE_DIR}/)
+target_include_directories(publish_raw PRIVATE ${CMAKE_SOURCE_DIR}/)
+target_include_directories(subscribe_raw PRIVATE ${CMAKE_SOURCE_DIR}/)
 
 # Link
 target_link_libraries(broker nlohmann_json::nlohmann_json pthread spdlog::spdlog_header_only)
@@ -69,5 +73,7 @@ target_link_libraries(publish PRIVATE mmw pthread)
 target_link_libraries(subscribe PRIVATE mmw pthread)
 target_link_libraries(publish_c PRIVATE mmw pthread)
 target_link_libraries(subscribe_c PRIVATE mmw pthread)
+target_link_libraries(publish_raw PRIVATE mmw pthread)
+target_link_libraries(subscribe_raw PRIVATE mmw pthread)
 
 
