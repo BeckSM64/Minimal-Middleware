@@ -164,7 +164,9 @@ MmwResult mmw_create_subscriber(const char* topic, void (*mmw_callback)(const ch
  */
 MmwResult mmw_publish(const char* topic, const char* payload) {
     auto it = publisherTopicToSocketFdMap.find(topic);
-    if (it == publisherTopicToSocketFdMap.end()) return MMW_ERROR;
+    if (it == publisherTopicToSocketFdMap.end()) {
+        return MMW_ERROR;
+    }
 
     int sock_fd = it->second;
     MmwMessage msg{"publish", topic, payload};
@@ -195,11 +197,15 @@ MmwResult mmw_cleanup() {
     // Stop subscriber threads
     {
         std::lock_guard<std::mutex> lock(socketListMutex);
-        for (auto* flag : subscriberRunFlags) *flag = false;
+        for (auto* flag : subscriberRunFlags) {
+            *flag = false;
+        }
     }
 
     for (auto& t : subscriberThreads) {
-        if (t.joinable()) t.join();
+        if (t.joinable()) {
+            t.join();
+        }
     }
     subscriberThreads.clear();
 
@@ -217,7 +223,9 @@ MmwResult mmw_cleanup() {
     subscriberTopicToSocketFdMap.clear();
 
     // Cleanup running flags
-    for (auto* flag : subscriberRunFlags) delete flag;
+    for (auto* flag : subscriberRunFlags) {
+        delete flag;
+    }
     subscriberRunFlags.clear();
 
     // Cleanup serializer
