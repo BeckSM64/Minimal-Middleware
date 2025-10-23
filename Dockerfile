@@ -2,7 +2,7 @@
 FROM ubuntu:22.04
 
 # Install dependencies
-RUN apt-get update && apt-get install -y build-essential cmake g++ 
+RUN apt-get update && apt-get install -y build-essential cmake g++  git
 
 # Set working directory
 WORKDIR /mmw/
@@ -12,3 +12,6 @@ RUN mkdir -p build/
 # App name
 ARG APP_NAME
 RUN cd build/ && cmake ../ && make && chmod +x broker publish subscribe
+
+# Run broker
+CMD ["./build/broker"]

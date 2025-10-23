@@ -1,0 +1,10 @@
+services:
+  mmw-broker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mmw-broker
+    ports:
+      - "5000:5000"   # Expose the broker port
+    restart: unless-stopped
+    tty: true
