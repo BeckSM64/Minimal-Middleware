@@ -49,7 +49,13 @@ int SocketAbstraction::Recv(int s, uint32_t* buf, int32_t len, int32_t flags) {
 }
 
 int SocketAbstraction::InetPtonAbstraction(int family, const char* pszAddrString, void* pAddrBuf) {
+#ifdef __linux__
+    return inet_pton(family, pszAddrString, pAddrBuf);
+#elif _WIN32
     return InetPtonA(family, pszAddrString, pAddrBuf);
+#else
+    #error "Unsupported platform"
+#endif
 }
 
 int SocketAbstraction::SetSockOpt(int s, int level, int optname, const char* optval, int optlen) {
