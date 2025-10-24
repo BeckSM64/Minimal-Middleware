@@ -15,6 +15,6 @@ class SocketAbstraction {
         static int SocketCleanup();
         static int Send(int s, uint32_t* buf, int32_t len, int32_t flags);
         static int Recv(int s, uint32_t* buf, int32_t len, int32_t flags);
-        static int InetPtonAbstraction(int family, const char* pszAddrString, PVOID pAddrBuf);
+        static int InetPtonAbstraction(int family, const char* pszAddrString, void* pAddrBuf);
         static int SetSockOpt(int s, int level, int optname, const char* optval, int optlen);
 };
