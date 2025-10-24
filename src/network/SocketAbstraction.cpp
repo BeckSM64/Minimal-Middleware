@@ -1,8 +1,16 @@
 #ifdef __linux__ 
     #include <arpa/inet.h>
 #elif _WIN32
+
+// Define target Windows version before including WinSock headers.
+// Older MinGW-w64 builds don't expose modern network functions
+// (like InetPtonA / InetPtonW) unless _WIN32_WINNT is set to at least 0x0600 (Vista+).
+// This ensures ws2tcpip.h declares the required functions.
+#ifndef _WIN32_WINNT
+    #define _WIN32_WINNT 0x0600
+#endif
     #include <winsock2.h>
-    #include <WS2tcpip.h>
+    #include <ws2tcpip.h>
     #include <stdint.h>
 #else
     #error "Unsupported platform"
