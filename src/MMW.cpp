@@ -75,12 +75,6 @@ MmwResult mmw_initialize(const char* configPath) {
  */
 MmwResult mmw_create_publisher(const char* topic) {
 
-    // WSADATA wsaData;
-    // if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-    //     fprintf(stderr, "WSAStartup failed\n");
-    //     return MMW_ERROR;
-    // }
-
     SocketAbstraction::SocketStartup();
 
     int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -91,8 +85,6 @@ MmwResult mmw_create_publisher(const char* topic) {
 
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(brokerPort);
-    // inet_pton(AF_INET, hostname.c_str(), &server_addr.sin_addr);
-    // InetPton(AF_INET, hostname.c_str(), &server_addr.sin_addr);
     SocketAbstraction::InetPtonAbstraction(AF_INET, hostname.c_str(), &server_addr.sin_addr);
 
     if (connect(sock_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
@@ -123,11 +115,6 @@ MmwResult mmw_create_publisher(const char* topic) {
  */
 MmwResult mmw_create_subscriber(const char* topic, void (*mmw_callback)(const char*)) {
 
-    // WSADATA wsaData;
-    // if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-    //     fprintf(stderr, "WSAStartup failed\n");
-    //     return MMW_ERROR;
-    // }
     SocketAbstraction::SocketStartup();
 
     int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -138,7 +125,6 @@ MmwResult mmw_create_subscriber(const char* topic, void (*mmw_callback)(const ch
 
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(brokerPort);
-    // inet_pton(AF_INET, hostname.c_str(), &server_addr.sin_addr);
     SocketAbstraction::InetPtonAbstraction(AF_INET, hostname.c_str(), &server_addr.sin_addr);
 
     if (connect(sock_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
@@ -159,7 +145,6 @@ MmwResult mmw_create_subscriber(const char* topic, void (*mmw_callback)(const ch
     std::thread t([sock_fd, runningFlag, mmw_callback]() {
         while (*runningFlag) {
             uint32_t netLen;
-            // int n = recv(sock_fd, (char*) &netLen, sizeof(netLen), MSG_WAITALL);
             int n = SocketAbstraction::Recv(sock_fd, &netLen, sizeof(netLen), MSG_WAITALL);
             if (n <= 0) {
                 break;
@@ -171,7 +156,6 @@ MmwResult mmw_create_subscriber(const char* topic, void (*mmw_callback)(const ch
             }
 
             std::vector<char> buf(msgLen);
-            // n = recv(sock_fd, (char*) buf.data(), msgLen, MSG_WAITALL);
             n = SocketAbstraction::Recv(sock_fd, (uint32_t*) buf.data(), msgLen, MSG_WAITALL);
             if (n <= 0) {
                 break;
@@ -208,7 +192,6 @@ MmwResult mmw_create_subscriber_raw(const char* topic, void (*mmw_callback)(void
 
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(brokerPort);
-    // inet_pton(AF_INET, hostname.c_str(), &server_addr.sin_addr);
     SocketAbstraction::InetPtonAbstraction(AF_INET, hostname.c_str(), &server_addr.sin_addr);
 
     if (connect(sock_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
@@ -229,7 +212,6 @@ MmwResult mmw_create_subscriber_raw(const char* topic, void (*mmw_callback)(void
     std::thread t([sock_fd, runningFlag, mmw_callback]() {
         while (*runningFlag) {
             uint32_t netLen;
-            // int n = recv(sock_fd, (char*) &netLen, sizeof(netLen), MSG_WAITALL);
             int n = SocketAbstraction::Recv(sock_fd, (uint32_t*) &netLen, sizeof(netLen), MSG_WAITALL);
             if (n <= 0) {
                 break;
@@ -241,7 +223,6 @@ MmwResult mmw_create_subscriber_raw(const char* topic, void (*mmw_callback)(void
             }
 
             std::vector<char> buf(msgLen);
-            // n = recv(sock_fd, (char*) buf.data(), msgLen, MSG_WAITALL);
             n = SocketAbstraction::Recv(sock_fd, (uint32_t*) buf.data(), msgLen, MSG_WAITALL);
             if (n <= 0) {
                 break;
@@ -359,7 +340,6 @@ MmwResult mmw_cleanup() {
         g_serializer = nullptr;
     }
 
-    // WSACleanup();
     SocketAbstraction::SocketCleanup();
 
     return MMW_OK;
