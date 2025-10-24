@@ -31,7 +31,13 @@ int SocketAbstraction::SocketStartup() {
 
 
 int SocketAbstraction::SocketCleanup() {
+#ifdef __linux__
+    return 0;
+#elif _WIN32
     return WSACleanup();
+#else
+    #error "Unsupported platform"
+#endif
 }
 
 int SocketAbstraction::Send(int s, uint32_t* buf, int32_t len, int32_t flags) {
