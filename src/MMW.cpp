@@ -1,6 +1,3 @@
-// #include <arpa/inet.h>
-// #include <winsock2.h>
-// #include <ws2tcpip.h>
 #include <unistd.h>
 #include <cstring>
 #include <thread>
@@ -17,8 +14,6 @@
 #include "IMmwMessageSerializer.h"
 #include "JsonSerializer.h"
 #include "SocketAbstraction.h"
-
-#define BUFFER_SIZE 1024
 
 static std::string hostname = "127.0.0.1";
 static int brokerPort = 5000;
