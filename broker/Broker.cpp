@@ -1,4 +1,3 @@
-#include <arpa/inet.h>
 #include <unistd.h>
 #include <cstring>
 #include <vector>
@@ -7,7 +6,6 @@
 #include <algorithm>
 #include <atomic>
 #include <signal.h>
-#include <sys/socket.h> // MSG_NOSIGNAL
 #include <errno.h>
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/basic_file_sink.h>
@@ -15,6 +13,7 @@
 #include "MmwMessage.h"
 #include "IMmwMessageSerializer.h"
 #include "JsonSerializer.h"
+#include "SocketAbstraction.h"
 
 #define PORT 5000
 
@@ -37,11 +36,14 @@ static IMmwMessageSerializer* g_serializer = nullptr;
 
 // Send a length-prefixed message
 inline bool sendMessage(int sock_fd, const std::string& data) {
+
+    SocketAbstraction::SocketStartup();
+
     uint32_t len = htonl(data.size());
-    if (send(sock_fd, &len, sizeof(len), 0) != sizeof(len)) {
+    if (SocketAbstraction::Send(sock_fd, &len, sizeof(len), 0) != sizeof(len)) {
         return false;
     }
-    if (send(sock_fd, data.data(), data.size(), 0) != (ssize_t)data.size()) {
+    if (SocketAbstraction::Send(sock_fd, (uint32_t*) data.data(), data.size(), 0) != (ssize_t)data.size()) {
         return false;
     }
     return true;
@@ -99,7 +101,7 @@ void removeClientByFd(int client_fd) {
 void handleClient(int client_fd) {
     while (running) {
         uint32_t netLen;
-        ssize_t n = recv(client_fd, &netLen, sizeof(netLen), MSG_WAITALL);
+        ssize_t n = SocketAbstraction::Recv(client_fd, &netLen, sizeof(netLen), MSG_WAITALL);
         if (n <= 0) {
             break;
         }
@@ -110,7 +112,7 @@ void handleClient(int client_fd) {
         }
 
         std::vector<char> buf(msgLen);
-        n = recv(client_fd, buf.data(), msgLen, MSG_WAITALL);
+        n = SocketAbstraction::Recv(client_fd, (uint32_t*) buf.data(), msgLen, MSG_WAITALL);
         if (n <= 0) {
             break;
         }
@@ -170,6 +172,8 @@ int main() {
     struct sockaddr_in address;
     socklen_t addrlen = sizeof(address);
 
+    SocketAbstraction::SocketStartup();
+
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd == -1) {
         perror("socket");
@@ -177,7 +181,7 @@ int main() {
     }
 
     int opt = 1;
-    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, (const char*) &opt, sizeof(opt));
 
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
@@ -241,5 +245,8 @@ int main() {
         close(server_fd); server_fd = -1;
     }
     spdlog::info("Broker exited cleanly");
+
+    SocketAbstraction::SocketCleanup();
+
     return 0;
 }

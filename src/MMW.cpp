@@ -1,4 +1,3 @@
-#include <arpa/inet.h>
 #include <unistd.h>
 #include <cstring>
 #include <thread>
@@ -14,8 +13,7 @@
 #include "ConfigFileParser.h"
 #include "IMmwMessageSerializer.h"
 #include "JsonSerializer.h"
-
-#define BUFFER_SIZE 1024
+#include "SocketAbstraction.h"
 
 static std::string hostname = "127.0.0.1";
 static int brokerPort = 5000;
@@ -32,11 +30,14 @@ static IMmwMessageSerializer* g_serializer = nullptr;
  * Helper function to send a length-prefixed message
  */
 inline bool sendMessage(int sock_fd, const std::string& data) {
+
+    SocketAbstraction::SocketStartup();
+
     uint32_t len = htonl(data.size());
-    if (send(sock_fd, &len, sizeof(len), 0) != sizeof(len)) {
+    if (SocketAbstraction::Send(sock_fd, &len, sizeof(len), 0) != sizeof(len)) {
         return false;
     }
-    if (send(sock_fd, data.data(), data.size(), 0) != (ssize_t)data.size()) {
+    if (SocketAbstraction::Send(sock_fd, (uint32_t*) data.data(), data.size(), 0) != (ssize_t)data.size()) {
         return false;
     }
     return true;
@@ -61,6 +62,9 @@ MmwResult mmw_initialize(const char* configPath) {
  * Create a publisher
  */
 MmwResult mmw_create_publisher(const char* topic) {
+
+    SocketAbstraction::SocketStartup();
+
     int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (sock_fd == -1) {
         perror("socket");
@@ -69,7 +73,7 @@ MmwResult mmw_create_publisher(const char* topic) {
 
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(brokerPort);
-    inet_pton(AF_INET, hostname.c_str(), &server_addr.sin_addr);
+    SocketAbstraction::InetPtonAbstraction(AF_INET, hostname.c_str(), &server_addr.sin_addr);
 
     if (connect(sock_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         perror("connect");
@@ -98,6 +102,9 @@ MmwResult mmw_create_publisher(const char* topic) {
  * Create a subscriber
  */
 MmwResult mmw_create_subscriber(const char* topic, void (*mmw_callback)(const char*)) {
+
+    SocketAbstraction::SocketStartup();
+
     int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (sock_fd == -1) {
         perror("socket");
@@ -106,7 +113,7 @@ MmwResult mmw_create_subscriber(const char* topic, void (*mmw_callback)(const ch
 
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(brokerPort);
-    inet_pton(AF_INET, hostname.c_str(), &server_addr.sin_addr);
+    SocketAbstraction::InetPtonAbstraction(AF_INET, hostname.c_str(), &server_addr.sin_addr);
 
     if (connect(sock_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         perror("connect");
@@ -126,7 +133,7 @@ MmwResult mmw_create_subscriber(const char* topic, void (*mmw_callback)(const ch
     std::thread t([sock_fd, runningFlag, mmw_callback]() {
         while (*runningFlag) {
             uint32_t netLen;
-            int n = recv(sock_fd, &netLen, sizeof(netLen), MSG_WAITALL);
+            int n = SocketAbstraction::Recv(sock_fd, &netLen, sizeof(netLen), MSG_WAITALL);
             if (n <= 0) {
                 break;
             }
@@ -137,7 +144,7 @@ MmwResult mmw_create_subscriber(const char* topic, void (*mmw_callback)(const ch
             }
 
             std::vector<char> buf(msgLen);
-            n = recv(sock_fd, buf.data(), msgLen, MSG_WAITALL);
+            n = SocketAbstraction::Recv(sock_fd, (uint32_t*) buf.data(), msgLen, MSG_WAITALL);
             if (n <= 0) {
                 break;
             }
@@ -165,6 +172,9 @@ MmwResult mmw_create_subscriber(const char* topic, void (*mmw_callback)(const ch
  * Create a subscriber
  */
 MmwResult mmw_create_subscriber_raw(const char* topic, void (*mmw_callback)(void*)) {
+
+    SocketAbstraction::SocketStartup();
+
     int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (sock_fd == -1) {
         perror("socket");
@@ -173,7 +183,7 @@ MmwResult mmw_create_subscriber_raw(const char* topic, void (*mmw_callback)(void
 
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(brokerPort);
-    inet_pton(AF_INET, hostname.c_str(), &server_addr.sin_addr);
+    SocketAbstraction::InetPtonAbstraction(AF_INET, hostname.c_str(), &server_addr.sin_addr);
 
     if (connect(sock_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         perror("connect");
@@ -193,7 +203,7 @@ MmwResult mmw_create_subscriber_raw(const char* topic, void (*mmw_callback)(void
     std::thread t([sock_fd, runningFlag, mmw_callback]() {
         while (*runningFlag) {
             uint32_t netLen;
-            int n = recv(sock_fd, &netLen, sizeof(netLen), MSG_WAITALL);
+            int n = SocketAbstraction::Recv(sock_fd, (uint32_t*) &netLen, sizeof(netLen), MSG_WAITALL);
             if (n <= 0) {
                 break;
             }
@@ -204,7 +214,7 @@ MmwResult mmw_create_subscriber_raw(const char* topic, void (*mmw_callback)(void
             }
 
             std::vector<char> buf(msgLen);
-            n = recv(sock_fd, buf.data(), msgLen, MSG_WAITALL);
+            n = SocketAbstraction::Recv(sock_fd, (uint32_t*) buf.data(), msgLen, MSG_WAITALL);
             if (n <= 0) {
                 break;
             }
@@ -320,6 +330,8 @@ MmwResult mmw_cleanup() {
         delete g_serializer;
         g_serializer = nullptr;
     }
+
+    SocketAbstraction::SocketCleanup();
 
     return MMW_OK;
 }

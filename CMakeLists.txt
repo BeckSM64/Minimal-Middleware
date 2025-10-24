@@ -42,15 +42,21 @@ add_library(
     ${CMAKE_SOURCE_DIR}/src/MMW.cpp
     ${CMAKE_SOURCE_DIR}/src/ConfigFileParser.cpp
     ${CMAKE_SOURCE_DIR}/src/serialization/JsonSerializer.cpp
+    ${CMAKE_SOURCE_DIR}/src/network/SocketAbstraction.cpp
 )
 
-target_link_libraries(mmw PUBLIC yaml-cpp::yaml-cpp nlohmann_json::nlohmann_json spdlog::spdlog_header_only)
+# Link Libraries, only link ws2_32 if we're on Windows
+if(WIN32)
+  target_link_libraries(mmw PUBLIC yaml-cpp::yaml-cpp nlohmann_json::nlohmann_json spdlog::spdlog_header_only ws2_32)
+else(WIN32)
+  target_link_libraries(mmw PUBLIC yaml-cpp::yaml-cpp nlohmann_json::nlohmann_json spdlog::spdlog_header_only)
+endif(WIN32)
 
 # Library includes
 target_include_directories(mmw PRIVATE ${CMAKE_SOURCE_DIR}/ ${CMAKE_SOURCE_DIR}/includes/)
 
 # Add executables
-add_executable(broker ${CMAKE_SOURCE_DIR}/broker/Broker.cpp ${CMAKE_SOURCE_DIR}/src/serialization/JsonSerializer.cpp)
+add_executable(broker ${CMAKE_SOURCE_DIR}/broker/Broker.cpp ${CMAKE_SOURCE_DIR}/src/serialization/JsonSerializer.cpp ${CMAKE_SOURCE_DIR}/src/network/SocketAbstraction.cpp)
 add_executable(publish ${CMAKE_SOURCE_DIR}/app/Publish.cpp)
 add_executable(subscribe ${CMAKE_SOURCE_DIR}/app/Subscribe.cpp)
 add_executable(publish_c ${CMAKE_SOURCE_DIR}/app/Publish.c)
@@ -67,8 +73,12 @@ target_include_directories(subscribe_c PRIVATE ${CMAKE_SOURCE_DIR}/)
 target_include_directories(publish_raw PRIVATE ${CMAKE_SOURCE_DIR}/)
 target_include_directories(subscribe_raw PRIVATE ${CMAKE_SOURCE_DIR}/)
 
-# Link
-target_link_libraries(broker nlohmann_json::nlohmann_json pthread spdlog::spdlog_header_only)
+# Link Libraries, only link ws2_32 if we're on Windows
+if(WIN32)
+  target_link_libraries(broker nlohmann_json::nlohmann_json pthread spdlog::spdlog_header_only ws2_32)
+else(WIN32)
+  target_link_libraries(broker nlohmann_json::nlohmann_json pthread spdlog::spdlog_header_only)
+endif(WIN32)
 target_link_libraries(publish PRIVATE mmw pthread)
 target_link_libraries(subscribe PRIVATE mmw pthread)
 target_link_libraries(publish_c PRIVATE mmw pthread)
