@@ -184,6 +184,9 @@ MmwResult mmw_create_subscriber(const char* topic, void (*mmw_callback)(const ch
  * Create a subscriber
  */
 MmwResult mmw_create_subscriber_raw(const char* topic, void (*mmw_callback)(void*)) {
+
+    SocketAbstraction::SocketStartup();
+
     int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (sock_fd == -1) {
         perror("socket");
