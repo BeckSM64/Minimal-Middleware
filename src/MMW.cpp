@@ -28,7 +28,9 @@ static std::vector<std::thread> subscriberThreads;
 static std::vector<std::atomic<bool>*> subscriberRunFlags;
 static IMmwMessageSerializer* g_serializer = nullptr;
 
-// Helper function to send a length-prefixed message
+/**
+ * Helper function to send a length-prefixed message
+ */
 inline bool sendMessage(int sock_fd, const std::string& data) {
     uint32_t len = htonl(data.size());
     if (send(sock_fd, &len, sizeof(len), 0) != sizeof(len)) {
@@ -160,6 +162,73 @@ MmwResult mmw_create_subscriber(const char* topic, void (*mmw_callback)(const ch
 }
 
 /**
+ * Create a subscriber
+ */
+MmwResult mmw_create_subscriber_raw(const char* topic, void (*mmw_callback)(void*)) {
+    int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock_fd == -1) {
+        perror("socket");
+        return MMW_ERROR;
+    }
+
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(brokerPort);
+    inet_pton(AF_INET, hostname.c_str(), &server_addr.sin_addr);
+
+    if (connect(sock_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+        perror("connect");
+        close(sock_fd);
+        return MMW_ERROR;
+    }
+
+    // Registration message
+    MmwMessage msg{"register", topic, "subscriber"};
+    if (!sendMessage(sock_fd, g_serializer->serialize(msg))) {
+        spdlog::error("Failed to send registration for subscriber: {}", topic);
+        close(sock_fd);
+        return MMW_ERROR;
+    }
+
+    auto runningFlag = new std::atomic<bool>(true);
+    std::thread t([sock_fd, runningFlag, mmw_callback]() {
+        while (*runningFlag) {
+            uint32_t netLen;
+            int n = recv(sock_fd, &netLen, sizeof(netLen), MSG_WAITALL);
+            if (n <= 0) {
+                break;
+            }
+
+            uint32_t msgLen = ntohl(netLen);
+            if (msgLen == 0) {
+                continue;
+            }
+
+            std::vector<char> buf(msgLen);
+            n = recv(sock_fd, buf.data(), msgLen, MSG_WAITALL);
+            if (n <= 0) {
+                break;
+            }
+
+            try {
+                MmwMessage msg = g_serializer->deserialize_raw(std::string(buf.data(), msgLen));
+                if (msg.type == "publish") {
+                    mmw_callback(msg.payload_raw);
+                }
+            } catch (const std::exception& e) {
+                spdlog::error("Subscriber failed to deserialize: {}", e.what());
+            }
+        }
+
+        close(sock_fd);
+        spdlog::info("Subscriber listener thread exiting");
+    });
+
+    subscriberThreads.push_back(std::move(t));
+    subscriberRunFlags.push_back(runningFlag);
+    return MMW_OK;
+}
+
+/**
  * Publish a message
  */
 MmwResult mmw_publish(const char* topic, const char* payload) {
@@ -171,6 +240,24 @@ MmwResult mmw_publish(const char* topic, const char* payload) {
     int sock_fd = it->second;
     MmwMessage msg{"publish", topic, payload};
     if (!sendMessage(sock_fd, g_serializer->serialize(msg))) {
+        spdlog::error("Failed to send message on topic {}", topic);
+        return MMW_ERROR;
+    }
+    return MMW_OK;
+}
+
+/**
+ * Publish a message of raw bytes
+ */
+MmwResult mmw_publish_raw(const char* topic, void* payload, size_t size) {
+    auto it = publisherTopicToSocketFdMap.find(topic);
+    if (it == publisherTopicToSocketFdMap.end()) {
+        return MMW_ERROR;
+    }
+
+    int sock_fd = it->second;
+    MmwMessage msg{"publish", topic, "", payload, size};
+    if (!sendMessage(sock_fd, g_serializer->serialize_raw(msg))) {
         spdlog::error("Failed to send message on topic {}", topic);
         return MMW_ERROR;
     }
