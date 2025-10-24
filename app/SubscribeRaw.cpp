@@ -1,7 +1,7 @@
 #include <string>
 #include <chrono>
 #include <thread>
-#include <iostream>
+#include <spdlog/spdlog.h>
 #include "MMW.h"
 
 typedef struct {
@@ -15,12 +15,13 @@ typedef struct {
 
 void testRawMessageCallback(void* message) {
     TestRawMessageStruct *testRawMessageString = reinterpret_cast<TestRawMessageStruct*>(message);
-    std::cout << testRawMessageString->testString1 << std::endl;
-    std::cout << testRawMessageString->testString2 << std::endl;
-    std::cout << testRawMessageString->testString3 << std::endl;
-    std::cout << testRawMessageString->testInt << std::endl;
-    std::cout << testRawMessageString->testLong << std::endl;
-    std::cout << testRawMessageString->testShort << std::endl;
+    spdlog::info("{} {} {} {} {} {}", 
+        testRawMessageString->testString1,
+        testRawMessageString->testString2,
+        testRawMessageString->testString3,
+        testRawMessageString->testInt,
+        testRawMessageString->testLong,
+        testRawMessageString->testShort);
 }
 
 int main() {
