@@ -48,7 +48,7 @@ int SocketAbstraction::Recv(int s, uint32_t* buf, int32_t len, int32_t flags) {
     return recv(s, (char*) buf, len, flags);
 }
 
-int SocketAbstraction::InetPtonAbstraction(INT family, const char* pszAddrString, void* pAddrBuf) {
+int SocketAbstraction::InetPtonAbstraction(int family, const char* pszAddrString, void* pAddrBuf) {
     return InetPtonA(family, pszAddrString, pAddrBuf);
 }
 
