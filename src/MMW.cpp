@@ -34,11 +34,9 @@ inline bool sendMessage(int sock_fd, const std::string& data) {
     SocketAbstraction::SocketStartup();
 
     uint32_t len = htonl(data.size());
-    // if (send(sock_fd, (const char*) &len, sizeof(len), 0) != sizeof(len)) {
     if (SocketAbstraction::Send(sock_fd, &len, sizeof(len), 0) != sizeof(len)) {
         return false;
     }
-    // if (send(sock_fd, data.data(), data.size(), 0) != (ssize_t)data.size()) {
     if (SocketAbstraction::Send(sock_fd, (uint32_t*) data.data(), data.size(), 0) != (ssize_t)data.size()) {
         return false;
     }

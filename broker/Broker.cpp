@@ -6,7 +6,6 @@
 #include <algorithm>
 #include <atomic>
 #include <signal.h>
-// #include <sys/socket.h> // MSG_NOSIGNAL
 #include <errno.h>
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/basic_file_sink.h>
