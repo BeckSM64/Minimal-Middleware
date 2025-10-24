@@ -31,11 +31,6 @@ static IMmwMessageSerializer* g_serializer = nullptr;
  */
 inline bool sendMessage(int sock_fd, const std::string& data) {
 
-    // WSADATA wsaData;
-    // if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-    //     fprintf(stderr, "WSAStartup failed\n");
-    //     return false;
-    // }
     SocketAbstraction::SocketStartup();
 
     uint32_t len = htonl(data.size());
