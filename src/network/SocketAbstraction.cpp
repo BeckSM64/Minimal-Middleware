@@ -2,6 +2,7 @@
     #include <arpa/inet.h>
 #elif _WIN32
     #include <winsock2.h>
+    #include <WS2tcpip.h>
     #include <stdint.h>
 #else
     #error "Unsupported platform"
@@ -41,6 +42,10 @@ int SocketAbstraction::Recv(int s, uint32_t* buf, int32_t len, int32_t flags) {
     return recv(s, (char*) buf, len, flags);
 }
 
-INT SocketAbstraction::InetPtonAbstraction(INT family, const char* pszAddrString, PVOID pAddrBuf) {
+int SocketAbstraction::InetPtonAbstraction(INT family, const char* pszAddrString, PVOID pAddrBuf) {
     return InetPtonA(family, pszAddrString, pAddrBuf);
+}
+
+int SocketAbstraction::SetSockOpt(int s, int level, int optname, const char* optval, int optlen) {
+    return setsockopt(s, level, optname, optval, optlen);
 }

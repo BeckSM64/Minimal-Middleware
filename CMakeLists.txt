@@ -51,7 +51,7 @@ target_link_libraries(mmw PUBLIC yaml-cpp::yaml-cpp nlohmann_json::nlohmann_json
 target_include_directories(mmw PRIVATE ${CMAKE_SOURCE_DIR}/ ${CMAKE_SOURCE_DIR}/includes/)
 
 # Add executables
-add_executable(broker ${CMAKE_SOURCE_DIR}/broker/Broker.cpp ${CMAKE_SOURCE_DIR}/src/serialization/JsonSerializer.cpp)
+add_executable(broker ${CMAKE_SOURCE_DIR}/broker/Broker.cpp ${CMAKE_SOURCE_DIR}/src/serialization/JsonSerializer.cpp ${CMAKE_SOURCE_DIR}/src/network/SocketAbstraction.cpp)
 add_executable(publish ${CMAKE_SOURCE_DIR}/app/Publish.cpp)
 add_executable(subscribe ${CMAKE_SOURCE_DIR}/app/Subscribe.cpp)
 add_executable(publish_c ${CMAKE_SOURCE_DIR}/app/Publish.c)
