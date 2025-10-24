@@ -76,4 +76,5 @@ target_link_libraries(subscribe_c PRIVATE mmw pthread)
 target_link_libraries(publish_raw PRIVATE mmw pthread)
 target_link_libraries(subscribe_raw PRIVATE mmw pthread)
 
-
+# Copy config to build directory for sample apps
+file(COPY "${CMAKE_SOURCE_DIR}/config/config.yml" DESTINATION "${CMAKE_SOURCE_DIR}/build/")
