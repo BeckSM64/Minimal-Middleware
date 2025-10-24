@@ -29,7 +29,6 @@ int SocketAbstraction::SocketStartup() {
     return 0;
 }
 
-
 int SocketAbstraction::SocketCleanup() {
 #ifdef __linux__
     return 0;
