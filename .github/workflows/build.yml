@@ -34,23 +34,15 @@ jobs:
           name: mmw-build
           path: build/
       - name: Make binaries executable
-        run: |
-          pwd
-          ls
-          cd build/
-          pwd
-          ls
-          chmod +x build/broker build/subscriber build/publisher
+        run: chmod +x build/broker build/subscribe build/publish
       - name: Run smoke tests
         run: |
-          pwd
-          ls
           cd build
           ./broker &
           BROKER_PID=$!
-          ./subscriber &
+          ./subscribe &
           SUB_PID=$!
           sleep 1
-          ./publisher
+          ./publish
           sleep 3
           kill $SUB_PID $BROKER_PID || true
