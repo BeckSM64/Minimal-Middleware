@@ -1,15 +1,13 @@
-name: Build Project
+name: Build and Test
 
 on:
   push:
-    branches:
-      - '**'
+    branches: [ "**" ]
   pull_request:
-    branches:
-      - '**'
+    branches: [ "**" ]
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
 
     steps:
@@ -18,8 +16,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake g++ build-essential libspdlog-dev nlohmann-json3-dev
+          sudo apt update
+          sudo apt install -y cmake g++ make
 
       - name: Configure project
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -27,3 +25,12 @@ jobs:
       - name: Build project
         run: cmake --build build -- -j$(nproc)
 
+      - name: Run middleware smoke test
+        working-directory: build
+        run: |
+          ./subscriber &  
+          SUB_PID=$!
+          sleep 1
+          ./publisher
+          sleep 3
+          kill $SUB_PID || true
