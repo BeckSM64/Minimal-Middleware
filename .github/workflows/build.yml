@@ -1,0 +1,48 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "**" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build project
+        run: |
+          mkdir build
+          cd build
+          cmake ../
+          make
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmw-build
+          path: build/
+
+  smoke-test:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v3
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: mmw-build
+          path: build/
+      - name: Make binaries executable
+        run: chmod +x build/broker build/subscribe build/publish
+      - name: Run smoke tests
+        run: |
+          cd build
+          ./broker &
+          BROKER_PID=$!
+          ./subscribe &
+          SUB_PID=$!
+          sleep 1
+          ./publish
+          sleep 3
+          kill $SUB_PID $BROKER_PID || true
