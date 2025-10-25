@@ -37,6 +37,8 @@ jobs:
         run: chmod +x build/broker build/subscriber build/publisher
       - name: Run smoke tests
         run: |
+          pwd
+          ls
           cd build
           ./broker &
           BROKER_PID=$!
