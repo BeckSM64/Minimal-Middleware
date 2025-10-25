@@ -37,6 +37,9 @@ jobs:
         run: |
           pwd
           ls
+          cd build/
+          pwd
+          ls
           chmod +x build/broker build/subscriber build/publisher
       - name: Run smoke tests
         run: |
