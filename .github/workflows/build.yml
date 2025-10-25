@@ -34,7 +34,10 @@ jobs:
           name: mmw-build
           path: build/
       - name: Make binaries executable
-        run: chmod +x build/broker build/subscriber build/publisher
+        run: |
+          pwd
+          ls
+          chmod +x build/broker build/subscriber build/publisher
       - name: Run smoke tests
         run: |
           pwd
