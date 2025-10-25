@@ -19,18 +19,24 @@ jobs:
           sudo apt update
           sudo apt install -y cmake g++ make
 
-      - name: Configure project
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      # - name: Configure project
+      #   run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 
       - name: Build project
-        run: cmake --build build -- -j$(nproc)
+        # run: cmake --build build -- -j$(nproc)
+        run: |
+          mkdir -p build/
+          cd build/
+          cmake ../
+          make
 
       - name: Run middleware smoke test
         working-directory: build
         run: |
-          ./build/subscriber &  
+          cd build/
+          ./subscriber &  
           SUB_PID=$!
           sleep 1
-          ./build/publisher
+          ./publisher
           sleep 3
           kill $SUB_PID || true
