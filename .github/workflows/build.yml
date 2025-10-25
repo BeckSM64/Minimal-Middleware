@@ -28,9 +28,9 @@ jobs:
       - name: Run middleware smoke test
         working-directory: build
         run: |
-          ./subscriber &  
+          ./build/subscriber &  
           SUB_PID=$!
           sleep 1
-          ./publisher
+          ./build/publisher
           sleep 3
           kill $SUB_PID || true
