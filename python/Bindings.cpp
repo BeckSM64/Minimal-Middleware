@@ -13,6 +13,23 @@ extern "C" void subscriber_trampoline(const char* msg) {
     }
 }
 
+class PySubscriber {
+public:
+    PySubscriber(const std::string& topic, py::function callback)
+        : callback(callback)
+    {
+        g_python_callback = callback; // still simplistic for single callback
+        mmw_create_subscriber(topic.c_str(), &subscriber_trampoline);
+    }
+
+    ~PySubscriber() {
+        mmw_cleanup(); // stop threads & close sockets
+    }
+
+private:
+    py::function callback;
+};
+
 PYBIND11_MODULE(mmw_python, m) {
     m.doc() = "Python bindings for Minimal Middleware";
 
@@ -33,4 +50,8 @@ PYBIND11_MODULE(mmw_python, m) {
         g_python_callback = callback;
         mmw_create_subscriber(topic, &subscriber_trampoline);
     });
+
+    py::class_<PySubscriber>(m, "Subscriber")
+    .def(py::init<const std::string&, py::function>());
+
 }
