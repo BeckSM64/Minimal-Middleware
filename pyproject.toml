@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mmw_python"
+version = "0.1.0"
+description = "Python bindings for Minimal Middleware"
+requires-python = ">=3.12"
+
+[tool.setuptools]
+packages = ["mmw_python"]
+package-dir = { "mmw_python" = "python" }
+
+[tool.setuptools.package-data]
+mmw_python = ["*.so", "__init__.py"]
