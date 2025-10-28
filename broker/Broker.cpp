@@ -107,17 +107,26 @@ void routeMessageToSubscribers(const std::string& topic, const MmwMessage& msg) 
 }
 
 void removeClientByFd(int client_fd) {
-    std::lock_guard<std::mutex> lock(clientListMutex);
-    connectedClientList.erase(
-        std::remove_if(
-            connectedClientList.begin(), connectedClientList.end(),
+    {
+        std::lock_guard<std::mutex> lock(clientListMutex);
+        connectedClientList.erase(
+            std::remove_if(
+                connectedClientList.begin(), connectedClientList.end(),
                 [client_fd](const ConnectedClient& c){
-                return c.socket_fd == client_fd;
-            }
-        ),
-        connectedClientList.end()
-    );
+                    return c.socket_fd == client_fd;
+                }
+            ),
+            connectedClientList.end()
+        );
+    }
+
+    // Remove unacked messages when subscriber disconnects
+    {
+        std::lock_guard<std::mutex> lock(ackMutex);
+        unackedMessages.erase(client_fd);
+    }
 }
+
 
 void handleClient(int client_fd) {
     while (running) {
