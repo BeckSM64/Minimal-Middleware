@@ -14,7 +14,6 @@
 #include "IMmwMessageSerializer.h"
 #include "JsonSerializer.h"
 #include "SocketAbstraction.h"
-#include <iostream>
 
 #define PORT 5000
 
@@ -135,8 +134,6 @@ void handleClient(int client_fd) {
 
         try {
             MmwMessage msg = g_serializer->deserialize(std::string(buf.data(), msgLen));
-
-            std::cout << "Autoincremented Message Id: " << msg.messageId << std::endl;
 
             if (msg.type == "register") {
                 ConnectedClient newClient{client_fd, msg.payload, msg.topic};
