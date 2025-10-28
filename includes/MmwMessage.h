@@ -8,4 +8,5 @@ struct MmwMessage {
     std::string payload; // message content, optional for register/unregister
     void* payload_raw;   // message content as raw bytes, optional for register/unregister
     size_t size;
+    bool reliability;
 };

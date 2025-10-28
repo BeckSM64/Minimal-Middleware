@@ -92,7 +92,9 @@ void routeMessageToSubscribers(const std::string& topic, const MmwMessage& msg) 
                 connectedClientList.end()
             );
             close(fd);
-        } else {
+        
+        // Only track unacked messages if reliability was set
+        } else if (msg.reliability) {
             std::lock_guard<std::mutex> lock(ackMutex);
             unackedMessages[fd][msg.messageId] = {msg, std::chrono::steady_clock::now()};
         }
