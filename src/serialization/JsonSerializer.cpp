@@ -27,26 +27,33 @@ std::vector<unsigned char> from_hex(const std::string& hex) {
 
 std::string JsonSerializer::serialize(const MmwMessage& msg) {
     nlohmann::json j;
+    j["messageId"] = std::to_string(msg.messageId);
     j["type"] = msg.type;
     j["topic"] = msg.topic;
     j["payload"] = msg.payload;
+    j["reliability"] = msg.reliability;
     return j.dump();
 }
 
 std::string JsonSerializer::serialize_raw(const MmwMessage& msg) {
     nlohmann::json j;
+    j["messageId"] = std::to_string(msg.messageId);
     j["type"] = msg.type;
     j["topic"] = msg.topic;
     j["payload"] = to_hex(msg.payload_raw, msg.size);
+    j["reliability"] = msg.reliability;
     return j.dump();
 }
 
 MmwMessage JsonSerializer::deserialize(const std::string& data) {
     MmwMessage msg;
     auto j = nlohmann::json::parse(data);
+    msg.messageId = std::stoul(j.value("messageId", ""));
     msg.type = j.value("type", "");
     msg.topic = j.value("topic", "");
     msg.payload = j.value("payload", "");
+    msg.reliability = j.value("reliability", false);
+
     return msg;
 }
 
@@ -54,8 +61,10 @@ MmwMessage JsonSerializer::deserialize_raw(const std::string& data) {
     MmwMessage msg;
     auto j = nlohmann::json::parse(data);
 
+    msg.messageId = std::stoul(j.value("messageId", ""));
     msg.type = j.value("type", "");
     msg.topic = j.value("topic", "");
+    msg.reliability = j.value("reliability", false);
 
     std::string payloadHex = j.value("payload", "");
     std::vector<unsigned char> bytes = from_hex(payloadHex);
@@ -69,5 +78,3 @@ MmwMessage JsonSerializer::deserialize_raw(const std::string& data) {
 
     return msg;
 }
-
-

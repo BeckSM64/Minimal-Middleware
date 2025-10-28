@@ -23,6 +23,12 @@ struct ConnectedClient {
     std::string topic;
 };
 
+struct PendingAck {
+    MmwMessage msg;
+    std::chrono::steady_clock::time_point timestamp;
+    int retryCount = 0;  // count how many times we've resent
+};
+
 static std::vector<ConnectedClient> connectedClientList;
 static std::mutex clientListMutex;
 
@@ -33,6 +39,11 @@ static int server_fd = -1;
 static std::atomic<bool> running(true);
 
 static IMmwMessageSerializer* g_serializer = nullptr;
+
+static std::mutex ackMutex;
+static std::unordered_map<int, std::unordered_map<uint32_t, PendingAck>> unackedMessages;
+
+static std::atomic<uint32_t> brokerMessageId{1}; // start at 1
 
 // Send a length-prefixed message
 inline bool sendMessage(int sock_fd, const std::string& data) {
@@ -81,22 +92,41 @@ void routeMessageToSubscribers(const std::string& topic, const MmwMessage& msg) 
                 connectedClientList.end()
             );
             close(fd);
+        
+        // Only track unacked messages if reliability was set
+        } else if (msg.reliability) {
+            std::lock_guard<std::mutex> lock(ackMutex);
+            PendingAck ack;
+            ack.msg = msg;
+            ack.timestamp = std::chrono::steady_clock::now();
+            ack.retryCount = 0;
+            unackedMessages[fd][msg.messageId] = ack;
+
         }
     }
 }
 
 void removeClientByFd(int client_fd) {
-    std::lock_guard<std::mutex> lock(clientListMutex);
-    connectedClientList.erase(
-        std::remove_if(
-            connectedClientList.begin(), connectedClientList.end(),
+    {
+        std::lock_guard<std::mutex> lock(clientListMutex);
+        connectedClientList.erase(
+            std::remove_if(
+                connectedClientList.begin(), connectedClientList.end(),
                 [client_fd](const ConnectedClient& c){
-                return c.socket_fd == client_fd;
-            }
-        ),
-        connectedClientList.end()
-    );
+                    return c.socket_fd == client_fd;
+                }
+            ),
+            connectedClientList.end()
+        );
+    }
+
+    // Remove unacked messages when subscriber disconnects
+    {
+        std::lock_guard<std::mutex> lock(ackMutex);
+        unackedMessages.erase(client_fd);
+    }
 }
+
 
 void handleClient(int client_fd) {
     while (running) {
@@ -125,8 +155,8 @@ void handleClient(int client_fd) {
                 std::lock_guard<std::mutex> lock(clientListMutex);
                 connectedClientList.push_back(newClient);
                 spdlog::info("Registered {} for topic {} (fd={})", msg.payload, msg.topic, client_fd);
-            } 
-            else if (msg.type == "unregister") {
+
+            } else if (msg.type == "unregister") {
                 std::lock_guard<std::mutex> lock(clientListMutex);
                 connectedClientList.erase(
                     std::remove_if(
@@ -138,9 +168,20 @@ void handleClient(int client_fd) {
                     connectedClientList.end()
                 );
                 spdlog::info("Unregistered client fd={} topic={}", client_fd, msg.topic);
-            } 
-            else if (msg.type == "publish") {
+            } else if (msg.type == "publish") {
+
+                // Assign a unique messageId
+                // TODO: This could eventually reach a limit
+                msg.messageId = brokerMessageId++;
                 routeMessageToSubscribers(msg.topic, msg);
+
+            } else if (msg.type == "ack") {
+                std::lock_guard<std::mutex> lock(ackMutex);
+                auto subIt = unackedMessages.find(client_fd);
+                if (subIt != unackedMessages.end()) {
+                    subIt->second.erase(msg.messageId);
+                }
+                spdlog::info("Received ACK for message {} from subscriber fd={}", msg.messageId, client_fd);
             }
 
         } catch (const std::exception& e) {
@@ -198,6 +239,60 @@ int main() {
 
     spdlog::info("Broker listening on port {}", PORT);
 
+    // Start resend thread for unacked messages
+    constexpr int MAX_RETRIES = 3;
+    std::thread resendThread([]() {
+        while (running) {
+
+            // TODO: This works, but look into maybe waking the thread whenever this needs to run
+            // instead of a fixed sleep for retries. This guarentees delay in messages, maybe not ideal.
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            auto now = std::chrono::steady_clock::now();
+
+            std::vector<int> fdsToRemove;
+
+            {
+                std::lock_guard<std::mutex> lock(ackMutex);
+
+                for (auto& clientPair : unackedMessages) {
+                    int fd = clientPair.first;
+                    auto& msgMap = clientPair.second;
+
+                    for (auto it = msgMap.begin(); it != msgMap.end(); ) {
+                        auto& pending = it->second;
+                        auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - pending.timestamp);
+
+                        if (elapsed.count() > 2) { // retry delay
+                            if (pending.retryCount >= MAX_RETRIES) {
+                                spdlog::error("Max retries reached for message {} to fd={}", pending.msg.messageId, fd);
+
+                                // mark fd for removal
+                                fdsToRemove.push_back(fd);
+                                break; // stop retrying messages for this subscriber
+                            } else {
+                                spdlog::warn("Resending message {} to fd={}", pending.msg.messageId, fd);
+                                sendMessage(fd, g_serializer->serialize(pending.msg));
+                                pending.timestamp = now;
+                                pending.retryCount++;
+                                ++it;
+                            }
+                        } else {
+                            ++it;
+                        }
+                    }
+                }
+
+                // Safely remove subscribers that reached max retries
+                for (int fd : fdsToRemove) {
+                    unackedMessages.erase(fd);
+                    close(fd);
+                    removeClientByFd(fd);
+                }
+            }
+        }
+
+    });
+
     while (running) {
         struct sockaddr_in client_addr;
         socklen_t client_len = sizeof(client_addr);
@@ -230,6 +325,9 @@ int main() {
         }
         clientThreads.clear();
     }
+
+    // Join resend thread
+    resendThread.join();
 
     {
         std::lock_guard<std::mutex> lock(clientListMutex);
