@@ -36,6 +36,7 @@ std::string JsonSerializer::serialize(const MmwMessage& msg) {
 
 std::string JsonSerializer::serialize_raw(const MmwMessage& msg) {
     nlohmann::json j;
+    j["messageId"] = std::to_string(msg.messageId);
     j["type"] = msg.type;
     j["topic"] = msg.topic;
     j["payload"] = to_hex(msg.payload_raw, msg.size);
@@ -56,6 +57,7 @@ MmwMessage JsonSerializer::deserialize_raw(const std::string& data) {
     MmwMessage msg;
     auto j = nlohmann::json::parse(data);
 
+    msg.messageId = std::stoul(j.value("messageId", ""));
     msg.type = j.value("type", "");
     msg.topic = j.value("topic", "");
 
@@ -71,5 +73,3 @@ MmwMessage JsonSerializer::deserialize_raw(const std::string& data) {
 
     return msg;
 }
-
-

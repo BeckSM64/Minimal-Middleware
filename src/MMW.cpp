@@ -239,6 +239,21 @@ MmwResult mmw_create_subscriber_raw(const char* topic, void (*mmw_callback)(void
                 MmwMessage msg = g_serializer->deserialize_raw(std::string(buf.data(), msgLen));
                 if (msg.type == "publish") {
                     mmw_callback(msg.payload_raw);
+
+                    // Send ACK back
+                    MmwMessage ackMsg;
+                    ackMsg.messageId = msg.messageId;
+                    ackMsg.type = "ack";
+                    ackMsg.topic = msg.topic;
+
+                    // TODO: REMOVE THIS RANDOM MESSAGE DROPPING THIS IS FOR TESTING
+                    // sendMessage(sock_fd, g_serializer->serialize(ackMsg));
+                    if (rand() % 5 != 0) { // 80% chance to send ACK
+                        sendMessage(sock_fd, g_serializer->serialize(ackMsg));
+                        spdlog::info("ACK sent for {}", ackMsg.messageId);
+                    } else {
+                        spdlog::warn("Dropping ACK for {}", ackMsg.messageId);
+                    }
                 }
             } catch (const std::exception& e) {
                 spdlog::error("Subscriber failed to deserialize: {}", e.what());
