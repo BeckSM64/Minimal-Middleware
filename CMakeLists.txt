@@ -33,10 +33,20 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(spdlog)
 
-find_package(pybind11 REQUIRED)
+# Fetch pybind11
+FetchContent_Declare(
+    pybind11
+    GIT_REPOSITORY https://github.com/pybind/pybind11.git
+    GIT_TAG        v3.0.1
+)
+FetchContent_MakeAvailable(pybind11)
 
+# Build the Python module
 pybind11_add_module(mmw_python python/Bindings.cpp)
-target_include_directories(mmw_python PRIVATE ${CMAKE_SOURCE_DIR}/ ${CMAKE_SOURCE_DIR}/includes/)
+target_include_directories(mmw_python PRIVATE 
+    ${CMAKE_SOURCE_DIR}/ 
+    ${CMAKE_SOURCE_DIR}/includes/
+)
 target_link_libraries(mmw_python PRIVATE mmw)
 
 # Add BUILD_SHARED_LIBS option
