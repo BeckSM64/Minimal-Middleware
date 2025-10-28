@@ -24,6 +24,11 @@ struct ConnectedClient {
     std::string topic;
 };
 
+struct PendingAck {
+    MmwMessage msg;
+    std::chrono::steady_clock::time_point timestamp;
+};
+
 static std::vector<ConnectedClient> connectedClientList;
 static std::mutex clientListMutex;
 
@@ -34,6 +39,9 @@ static int server_fd = -1;
 static std::atomic<bool> running(true);
 
 static IMmwMessageSerializer* g_serializer = nullptr;
+
+static std::mutex ackMutex;
+static std::unordered_map<int, std::unordered_map<uint32_t, PendingAck>> unackedMessages;
 
 // Send a length-prefixed message
 inline bool sendMessage(int sock_fd, const std::string& data) {
@@ -82,6 +90,9 @@ void routeMessageToSubscribers(const std::string& topic, const MmwMessage& msg) 
                 connectedClientList.end()
             );
             close(fd);
+        } else if (sendMessage(fd, serialized)) {
+            std::lock_guard<std::mutex> lock(ackMutex);
+            unackedMessages[fd][msg.messageId] = {msg, std::chrono::steady_clock::now()};
         }
     }
 }
@@ -144,6 +155,13 @@ void handleClient(int client_fd) {
             } 
             else if (msg.type == "publish") {
                 routeMessageToSubscribers(msg.topic, msg);
+            } else if (msg.type == "ack") {
+                std::lock_guard<std::mutex> lock(ackMutex);
+                auto subIt = unackedMessages.find(client_fd);
+                if (subIt != unackedMessages.end()) {
+                    subIt->second.erase(msg.messageId);
+                }
+                spdlog::info("Received ACK for message {} from subscriber fd={}", msg.messageId, client_fd);
             }
 
         } catch (const std::exception& e) {
@@ -201,6 +219,28 @@ int main() {
 
     spdlog::info("Broker listening on port {}", PORT);
 
+    // Start resend thread for unacked messages
+    std::thread resendThread([]() {
+        while (running) {
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+            auto now = std::chrono::steady_clock::now();
+            std::lock_guard<std::mutex> lock(ackMutex);
+
+            for (auto &clientPair : unackedMessages) {
+                int fd = clientPair.first;
+                for (auto &msgPair : clientPair.second) {
+                    auto &pending = msgPair.second;
+                    auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - pending.timestamp);
+                    if (elapsed.count() > 2) { // TODO: retry after 2 seconds, may want to make this configurable
+                        spdlog::warn("Resending message {} to fd={}", pending.msg.messageId, fd);
+                        sendMessage(fd, g_serializer->serialize(pending.msg));
+                        pending.timestamp = now;
+                    }
+                }
+            }
+        }
+    });
+
     while (running) {
         struct sockaddr_in client_addr;
         socklen_t client_len = sizeof(client_addr);
@@ -233,6 +273,9 @@ int main() {
         }
         clientThreads.clear();
     }
+
+    // Join resend thread
+    resendThread.join();
 
     {
         std::lock_guard<std::mutex> lock(clientListMutex);

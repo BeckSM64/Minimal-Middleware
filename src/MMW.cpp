@@ -25,12 +25,7 @@ static std::mutex socketListMutex;
 static std::vector<std::thread> subscriberThreads;
 static std::vector<std::atomic<bool>*> subscriberRunFlags;
 static IMmwMessageSerializer* g_serializer = nullptr;
-
 static uint32_t autoincrementedMessageId = 0; // Starts at 0, gets incremented each
-
-void autoincrementMessageId() {
-    autoincrementedMessageId++;
-}
 
 /**
  * Helper function to send a length-prefixed message
@@ -164,6 +159,19 @@ MmwResult mmw_create_subscriber(const char* topic, void (*mmw_callback)(const ch
                 MmwMessage msg = g_serializer->deserialize(std::string(buf.data(), msgLen));
                 if (msg.type == "publish") {
                     mmw_callback(msg.payload.c_str());
+
+                    // Send ACK back
+                    MmwMessage ackMsg;
+                    ackMsg.messageId = msg.messageId;
+                    ackMsg.type = "ack";
+                    ackMsg.topic = msg.topic;
+                    // sendMessage(sock_fd, g_serializer->serialize(ackMsg));
+                    if (rand() % 5 != 0) { // 80% chance to send ACK
+                        sendMessage(sock_fd, g_serializer->serialize(ackMsg));
+                        spdlog::info("ACK sent for {}", ackMsg.messageId);
+                    } else {
+                        spdlog::warn("Dropping ACK for {}", ackMsg.messageId);
+                    }
                 }
             } catch (const std::exception& e) {
                 spdlog::error("Subscriber failed to deserialize: {}", e.what());
