@@ -25,7 +25,6 @@ static std::mutex socketListMutex;
 static std::vector<std::thread> subscriberThreads;
 static std::vector<std::atomic<bool>*> subscriberRunFlags;
 static IMmwMessageSerializer* g_serializer = nullptr;
-static uint32_t autoincrementedMessageId = 0; // Starts at 0, gets incremented each
 
 /**
  * Helper function to send a length-prefixed message
@@ -83,10 +82,7 @@ MmwResult mmw_create_publisher(const char* topic) {
     }
 
     // Registration message
-    MmwMessage msg{autoincrementedMessageId, "register", topic, "publisher"};
-
-    // Increment the message id
-    autoincrementedMessageId++;
+    MmwMessage msg{0, "register", topic, "publisher"};
 
     if (!sendMessage(sock_fd, g_serializer->serialize(msg))) {
         spdlog::error("Failed to send registration for publisher: {}", topic);
@@ -127,8 +123,7 @@ MmwResult mmw_create_subscriber(const char* topic, void (*mmw_callback)(const ch
     }
 
     // Registration message
-    MmwMessage msg{autoincrementedMessageId, "register", topic, "subscriber"};
-    autoincrementedMessageId++;
+    MmwMessage msg{0, "register", topic, "subscriber"};
     if (!sendMessage(sock_fd, g_serializer->serialize(msg))) {
         spdlog::error("Failed to send registration for subscriber: {}", topic);
         close(sock_fd);
@@ -165,6 +160,8 @@ MmwResult mmw_create_subscriber(const char* topic, void (*mmw_callback)(const ch
                     ackMsg.messageId = msg.messageId;
                     ackMsg.type = "ack";
                     ackMsg.topic = msg.topic;
+
+                    // TODO: REMOVE THIS RANDOM MESSAGE DROPPING THIS IS FOR TESTING
                     // sendMessage(sock_fd, g_serializer->serialize(ackMsg));
                     if (rand() % 5 != 0) { // 80% chance to send ACK
                         sendMessage(sock_fd, g_serializer->serialize(ackMsg));
@@ -211,8 +208,7 @@ MmwResult mmw_create_subscriber_raw(const char* topic, void (*mmw_callback)(void
     }
 
     // Registration message
-    MmwMessage msg{autoincrementedMessageId, "register", topic, "subscriber"};
-    autoincrementedMessageId++;
+    MmwMessage msg{0, "register", topic, "subscriber"};
     if (!sendMessage(sock_fd, g_serializer->serialize(msg))) {
         spdlog::error("Failed to send registration for subscriber: {}", topic);
         close(sock_fd);
@@ -268,8 +264,7 @@ MmwResult mmw_publish(const char* topic, const char* payload) {
     }
 
     int sock_fd = it->second;
-    MmwMessage msg{autoincrementedMessageId, "publish", topic, payload};
-    autoincrementedMessageId++;
+    MmwMessage msg{0, "publish", topic, payload};
     if (!sendMessage(sock_fd, g_serializer->serialize(msg))) {
         spdlog::error("Failed to send message on topic {}", topic);
         return MMW_ERROR;
@@ -287,8 +282,7 @@ MmwResult mmw_publish_raw(const char* topic, void* payload, size_t size) {
     }
 
     int sock_fd = it->second;
-    MmwMessage msg{autoincrementedMessageId, "publish", topic, "", payload, size};
-    autoincrementedMessageId++;
+    MmwMessage msg{0, "publish", topic, "", payload, size};
     if (!sendMessage(sock_fd, g_serializer->serialize_raw(msg))) {
         spdlog::error("Failed to send message on topic {}", topic);
         return MMW_ERROR;
@@ -304,8 +298,7 @@ MmwResult mmw_cleanup() {
     for (auto& pair : publisherTopicToSocketFdMap) {
         int sock_fd = pair.second;
         if (sock_fd != -1) {
-            MmwMessage msg{autoincrementedMessageId, "unregister", pair.first, ""};
-            autoincrementedMessageId++;
+            MmwMessage msg{0, "unregister", pair.first, ""};
             sendMessage(sock_fd, g_serializer->serialize(msg));
             std::this_thread::sleep_for(std::chrono::milliseconds(20));
             close(sock_fd);
@@ -333,8 +326,7 @@ MmwResult mmw_cleanup() {
     for (auto& pair : subscriberTopicToSocketFdMap) {
         int sock_fd = pair.second;
         if (sock_fd != -1) {
-            MmwMessage msg{autoincrementedMessageId, "unregister", pair.first, ""};
-            autoincrementedMessageId++;
+            MmwMessage msg{0, "unregister", pair.first, ""};
             sendMessage(sock_fd, g_serializer->serialize(msg));
             std::this_thread::sleep_for(std::chrono::milliseconds(20));
             close(sock_fd);

@@ -43,6 +43,8 @@ static IMmwMessageSerializer* g_serializer = nullptr;
 static std::mutex ackMutex;
 static std::unordered_map<int, std::unordered_map<uint32_t, PendingAck>> unackedMessages;
 
+static std::atomic<uint32_t> brokerMessageId{1}; // start at 1
+
 // Send a length-prefixed message
 inline bool sendMessage(int sock_fd, const std::string& data) {
 
@@ -90,7 +92,7 @@ void routeMessageToSubscribers(const std::string& topic, const MmwMessage& msg) 
                 connectedClientList.end()
             );
             close(fd);
-        } else if (sendMessage(fd, serialized)) {
+        } else {
             std::lock_guard<std::mutex> lock(ackMutex);
             unackedMessages[fd][msg.messageId] = {msg, std::chrono::steady_clock::now()};
         }
@@ -139,8 +141,8 @@ void handleClient(int client_fd) {
                 std::lock_guard<std::mutex> lock(clientListMutex);
                 connectedClientList.push_back(newClient);
                 spdlog::info("Registered {} for topic {} (fd={})", msg.payload, msg.topic, client_fd);
-            } 
-            else if (msg.type == "unregister") {
+
+            } else if (msg.type == "unregister") {
                 std::lock_guard<std::mutex> lock(clientListMutex);
                 connectedClientList.erase(
                     std::remove_if(
@@ -152,9 +154,12 @@ void handleClient(int client_fd) {
                     connectedClientList.end()
                 );
                 spdlog::info("Unregistered client fd={} topic={}", client_fd, msg.topic);
-            } 
-            else if (msg.type == "publish") {
+            } else if (msg.type == "publish") {
+
+                // Assign a unique messageId
+                msg.messageId = brokerMessageId++;
                 routeMessageToSubscribers(msg.topic, msg);
+
             } else if (msg.type == "ack") {
                 std::lock_guard<std::mutex> lock(ackMutex);
                 auto subIt = unackedMessages.find(client_fd);
