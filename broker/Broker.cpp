@@ -242,7 +242,10 @@ int main() {
     constexpr int MAX_RETRIES = 3;
     std::thread resendThread([]() {
         while (running) {
-            std::this_thread::sleep_for(std::chrono::seconds(1));
+
+            // TODO: This works, but look into maybe waking the thread whenever this needs to run
+            // instead of a fixed sleep for retries. This guarentees delay in messages, maybe not ideal.
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
             auto now = std::chrono::steady_clock::now();
 
             std::vector<int> fdsToRemove;
