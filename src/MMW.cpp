@@ -26,6 +26,12 @@ static std::vector<std::thread> subscriberThreads;
 static std::vector<std::atomic<bool>*> subscriberRunFlags;
 static IMmwMessageSerializer* g_serializer = nullptr;
 
+static uint32_t autoincrementedMessageId = 0; // Starts at 0, gets incremented each
+
+void autoincrementMessageId() {
+    autoincrementedMessageId++;
+}
+
 /**
  * Helper function to send a length-prefixed message
  */
@@ -82,7 +88,11 @@ MmwResult mmw_create_publisher(const char* topic) {
     }
 
     // Registration message
-    MmwMessage msg{"register", topic, "publisher"};
+    MmwMessage msg{autoincrementedMessageId, "register", topic, "publisher"};
+
+    // Increment the message id
+    autoincrementedMessageId++;
+
     if (!sendMessage(sock_fd, g_serializer->serialize(msg))) {
         spdlog::error("Failed to send registration for publisher: {}", topic);
         close(sock_fd);
@@ -122,7 +132,8 @@ MmwResult mmw_create_subscriber(const char* topic, void (*mmw_callback)(const ch
     }
 
     // Registration message
-    MmwMessage msg{"register", topic, "subscriber"};
+    MmwMessage msg{autoincrementedMessageId, "register", topic, "subscriber"};
+    autoincrementedMessageId++;
     if (!sendMessage(sock_fd, g_serializer->serialize(msg))) {
         spdlog::error("Failed to send registration for subscriber: {}", topic);
         close(sock_fd);
@@ -192,7 +203,8 @@ MmwResult mmw_create_subscriber_raw(const char* topic, void (*mmw_callback)(void
     }
 
     // Registration message
-    MmwMessage msg{"register", topic, "subscriber"};
+    MmwMessage msg{autoincrementedMessageId, "register", topic, "subscriber"};
+    autoincrementedMessageId++;
     if (!sendMessage(sock_fd, g_serializer->serialize(msg))) {
         spdlog::error("Failed to send registration for subscriber: {}", topic);
         close(sock_fd);
@@ -248,7 +260,8 @@ MmwResult mmw_publish(const char* topic, const char* payload) {
     }
 
     int sock_fd = it->second;
-    MmwMessage msg{"publish", topic, payload};
+    MmwMessage msg{autoincrementedMessageId, "publish", topic, payload};
+    autoincrementedMessageId++;
     if (!sendMessage(sock_fd, g_serializer->serialize(msg))) {
         spdlog::error("Failed to send message on topic {}", topic);
         return MMW_ERROR;
@@ -266,7 +279,8 @@ MmwResult mmw_publish_raw(const char* topic, void* payload, size_t size) {
     }
 
     int sock_fd = it->second;
-    MmwMessage msg{"publish", topic, "", payload, size};
+    MmwMessage msg{autoincrementedMessageId, "publish", topic, "", payload, size};
+    autoincrementedMessageId++;
     if (!sendMessage(sock_fd, g_serializer->serialize_raw(msg))) {
         spdlog::error("Failed to send message on topic {}", topic);
         return MMW_ERROR;
@@ -282,7 +296,8 @@ MmwResult mmw_cleanup() {
     for (auto& pair : publisherTopicToSocketFdMap) {
         int sock_fd = pair.second;
         if (sock_fd != -1) {
-            MmwMessage msg{"unregister", pair.first, ""};
+            MmwMessage msg{autoincrementedMessageId, "unregister", pair.first, ""};
+            autoincrementedMessageId++;
             sendMessage(sock_fd, g_serializer->serialize(msg));
             std::this_thread::sleep_for(std::chrono::milliseconds(20));
             close(sock_fd);
@@ -310,7 +325,8 @@ MmwResult mmw_cleanup() {
     for (auto& pair : subscriberTopicToSocketFdMap) {
         int sock_fd = pair.second;
         if (sock_fd != -1) {
-            MmwMessage msg{"unregister", pair.first, ""};
+            MmwMessage msg{autoincrementedMessageId, "unregister", pair.first, ""};
+            autoincrementedMessageId++;
             sendMessage(sock_fd, g_serializer->serialize(msg));
             std::this_thread::sleep_for(std::chrono::milliseconds(20));
             close(sock_fd);

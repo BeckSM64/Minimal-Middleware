@@ -27,6 +27,7 @@ std::vector<unsigned char> from_hex(const std::string& hex) {
 
 std::string JsonSerializer::serialize(const MmwMessage& msg) {
     nlohmann::json j;
+    j["messageId"] = std::to_string(msg.messageId);
     j["type"] = msg.type;
     j["topic"] = msg.topic;
     j["payload"] = msg.payload;
@@ -44,6 +45,7 @@ std::string JsonSerializer::serialize_raw(const MmwMessage& msg) {
 MmwMessage JsonSerializer::deserialize(const std::string& data) {
     MmwMessage msg;
     auto j = nlohmann::json::parse(data);
+    msg.messageId = std::stoul(j.value("messageId", ""));
     msg.type = j.value("type", "");
     msg.topic = j.value("topic", "");
     msg.payload = j.value("payload", "");
