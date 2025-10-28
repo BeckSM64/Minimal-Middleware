@@ -26,6 +26,7 @@ struct ConnectedClient {
 struct PendingAck {
     MmwMessage msg;
     std::chrono::steady_clock::time_point timestamp;
+    int retryCount = 0;  // count how many times we've resent
 };
 
 static std::vector<ConnectedClient> connectedClientList;
@@ -95,7 +96,12 @@ void routeMessageToSubscribers(const std::string& topic, const MmwMessage& msg) 
         // Only track unacked messages if reliability was set
         } else if (msg.reliability) {
             std::lock_guard<std::mutex> lock(ackMutex);
-            unackedMessages[fd][msg.messageId] = {msg, std::chrono::steady_clock::now()};
+            PendingAck ack;
+            ack.msg = msg;
+            ack.timestamp = std::chrono::steady_clock::now();
+            ack.retryCount = 0;
+            unackedMessages[fd][msg.messageId] = ack;
+
         }
     }
 }
@@ -224,25 +230,54 @@ int main() {
     spdlog::info("Broker listening on port {}", PORT);
 
     // Start resend thread for unacked messages
+    constexpr int MAX_RETRIES = 3;
     std::thread resendThread([]() {
         while (running) {
             std::this_thread::sleep_for(std::chrono::seconds(1));
             auto now = std::chrono::steady_clock::now();
-            std::lock_guard<std::mutex> lock(ackMutex);
 
-            for (auto &clientPair : unackedMessages) {
-                int fd = clientPair.first;
-                for (auto &msgPair : clientPair.second) {
-                    auto &pending = msgPair.second;
-                    auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - pending.timestamp);
-                    if (elapsed.count() > 2) { // TODO: retry after 2 seconds, may want to make this configurable
-                        spdlog::warn("Resending message {} to fd={}", pending.msg.messageId, fd);
-                        sendMessage(fd, g_serializer->serialize(pending.msg));
-                        pending.timestamp = now;
+            std::vector<int> fdsToRemove;
+
+            {
+                std::lock_guard<std::mutex> lock(ackMutex);
+
+                for (auto& clientPair : unackedMessages) {
+                    int fd = clientPair.first;
+                    auto& msgMap = clientPair.second;
+
+                    for (auto it = msgMap.begin(); it != msgMap.end(); ) {
+                        auto& pending = it->second;
+                        auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - pending.timestamp);
+
+                        if (elapsed.count() > 2) { // retry delay
+                            if (pending.retryCount >= MAX_RETRIES) {
+                                spdlog::error("Max retries reached for message {} to fd={}", pending.msg.messageId, fd);
+
+                                // mark fd for removal
+                                fdsToRemove.push_back(fd);
+                                break; // stop retrying messages for this subscriber
+                            } else {
+                                spdlog::warn("Resending message {} to fd={}", pending.msg.messageId, fd);
+                                sendMessage(fd, g_serializer->serialize(pending.msg));
+                                pending.timestamp = now;
+                                pending.retryCount++;
+                                ++it;
+                            }
+                        } else {
+                            ++it;
+                        }
                     }
+                }
+
+                // Safely remove subscribers that reached max retries
+                for (int fd : fdsToRemove) {
+                    unackedMessages.erase(fd);
+                    close(fd);
+                    removeClientByFd(fd);
                 }
             }
         }
+
     });
 
     while (running) {
