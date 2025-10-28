@@ -171,6 +171,7 @@ void handleClient(int client_fd) {
             } else if (msg.type == "publish") {
 
                 // Assign a unique messageId
+                // TODO: This could eventually reach a limit
                 msg.messageId = brokerMessageId++;
                 routeMessageToSubscribers(msg.topic, msg);
 
