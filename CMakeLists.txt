@@ -33,6 +33,12 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(spdlog)
 
+find_package(pybind11 REQUIRED)
+
+pybind11_add_module(mmw_python python/Bindings.cpp)
+target_include_directories(mmw_python PRIVATE ${CMAKE_SOURCE_DIR}/ ${CMAKE_SOURCE_DIR}/includes/)
+target_link_libraries(mmw_python PRIVATE mmw)
+
 # Add BUILD_SHARED_LIBS option
 option(BUILD_SHARED_LIBS "Build as shared library" ON)
 
