@@ -21,7 +21,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mmw-build
-          path: build/
+          path: |
+            build/
+            python/
 
   smoke-test:
     runs-on: ubuntu-latest
