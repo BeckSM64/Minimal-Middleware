@@ -60,35 +60,42 @@ jobs:
       - name: Build Python binding wheel
         run: |
           python3 -m build .
+      - name: Install wheel
+        run: |
+          cd dist/
+          python3 -m pip install --upgrade pip
+          python3 -m pip install mmw_python-0.1.0-py3-none-any.whl
+      - name: Verify Python binding
+        run: python3 -c "import mmw_python; print('Python binding imported successfully'); print('Available functions:', dir(mmw_python))"
       - name: Upload Python wheel
         uses: actions/upload-artifact@v4
         with:
           name: python-wheel
           path: dist/
 
-  python-test:
-    runs-on: ubuntu-latest
-    needs: python-build
-    steps:
-      - uses: actions/checkout@v3
+  # python-test:
+  #   runs-on: ubuntu-latest
+  #   needs: python-build
+  #   steps:
+  #     - uses: actions/checkout@v3
 
-      - name: Install Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: 3.12
+  #     - name: Install Python
+  #       uses: actions/setup-python@v4
+  #       with:
+  #         python-version: 3.12
 
-      - name: Download Python wheel
-        uses: actions/download-artifact@v4
-        with:
-          name: python-wheel
-          path: dist/
+  #     - name: Download Python wheel
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: python-wheel
+  #         path: dist/
 
-      - name: Install wheel from dist
-        run: |
-          cd dist/
-          ls
-          python3 -m pip install --upgrade pip
-          python3 -m pip install mmw_python-0.1.0-py3-none-any.whl
+  #     - name: Install wheel from dist
+  #       run: |
+  #         cd dist/
+  #         ls
+  #         python3 -m pip install --upgrade pip
+  #         python3 -m pip install mmw_python-0.1.0-py3-none-any.whl
 
-      - name: Verify Python binding
-        run: python3 -c "import mmw_python; print('Python binding imported successfully'); print('Available functions:', dir(mmw_python))"
+  #     - name: Verify Python binding
+  #       run: python3 -c "import mmw_python; print('Python binding imported successfully'); print('Available functions:', dir(mmw_python))"
