@@ -79,6 +79,10 @@ jobs:
 
       - name: Install wheel from dist
         run: |
+          pwd
+          ls
+          cd dist/
+          ls
           python3 -m pip install --upgrade pip
           python3 -m pip install dist/mmw_python-0.1.0-py3-none-any.whl
 
