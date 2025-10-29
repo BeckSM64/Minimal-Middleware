@@ -27,7 +27,6 @@ jobs:
       - name: Package Python binding (wheel)
         run: |
           python3 -m pip install --upgrade build
-          cd python
           python3 -m build
 
       - name: Upload build artifacts
@@ -36,7 +35,7 @@ jobs:
           name: mmw-build
           path: |
             build/
-            python/dist/
+            dist/
 
   smoke-test:
     runs-on: ubuntu-latest
