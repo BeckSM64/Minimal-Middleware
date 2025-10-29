@@ -68,26 +68,25 @@ jobs:
 
   python-test:
     runs-on: ubuntu-latest
-    needs: python-build
+    needs: build
     steps:
       - uses: actions/checkout@v3
-      - name: Download Python wheel
-        uses: actions/download-artifact@v4
-        with:
-          name: python-wheel
-          path: dist/
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: 3.12
-      - name: Install Python wheel
+
+      - name: Install the wheel
         run: |
           python3 -m pip install --upgrade pip
-          python3 -m pip install --force-reinstall dist/mmw_python-0.1.0-*.whl
-      - name: Test Python binding
+          python3 -m pip install --force-reinstall ./dist/mmw_python-0.1.0-cp312-cp312-linux_x86_64.whl
+
+      - name: Print Python binding functions
         run: |
           python3 -c "
           import mmw_python as mmw
           print('Python binding imported successfully')
           print('Available functions:', dir(mmw))
           "
+
