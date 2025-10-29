@@ -108,6 +108,12 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: mmw-build
+          path: build/
+
       - name: Download Python Wheel
         uses: actions/download-artifact@v4
         with:
