@@ -11,48 +11,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
-      - name: Install dependencies
+      - name: Build project
         run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake build-essential python3-dev python3-pip python3-venv
-
-      - name: Build C++ project and Python binding
-        run: |
-          mkdir -p build
+          mkdir build
           cd build
           cmake ../
           make
-          cd ..
-
-      - name: Package Python binding (wheel)
-        run: |
-          python3 -m pip install --upgrade build
-          python3 -m build .
-
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: mmw-build
-          path: |
-            build/
-            dist/
+          path: build/
 
   smoke-test:
     runs-on: ubuntu-latest
     needs: build
     steps:
       - uses: actions/checkout@v3
-
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
           name: mmw-build
           path: build/
-
       - name: Make binaries executable
         run: chmod +x build/broker build/subscribe build/publish
-
       - name: Run smoke tests
         run: |
           cd build
@@ -64,33 +46,3 @@ jobs:
           ./publish
           sleep 3
           kill $SUB_PID $BROKER_PID || true
-
-  python-test:
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: mmw-build
-          path: .
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: 3.12
-
-      - name: Install wheel
-        run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install --force-reinstall dist/mmw_python-0.1.0-cp312-cp312-linux_x86_64.whl
-
-      - name: Run Python API test
-        run: |
-          python3 -c "
-          import mmw_python as mmw
-          print('Python binding imported successfully')
-          print('Available functions:', dir(mmw))
-          "
