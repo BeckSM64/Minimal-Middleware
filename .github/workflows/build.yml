@@ -92,11 +92,4 @@ jobs:
           python3 -m pip install dist/mmw_python-0.1.0-py3-none-any.whl
 
       - name: Verify Python binding
-        run: |
-          python3 -c "
-            import mmw_python
-            print('Python binding imported successfully')
-            print('Available functions:', dir(mmw_python))
-            "
-
-
+        run: python3 -c "import mmw_python; print('Python binding imported successfully'); print('Available functions:', dir(mmw_python))"
