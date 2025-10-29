@@ -34,7 +34,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: mmw-build
-          path: 
+          path: |
             build/
             python/
       - name: Make binaries executable
@@ -60,7 +60,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: mmw-build
-          path:
+          path: |
             build/
             python/
       - name: Install Python build dependencies
