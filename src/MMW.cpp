@@ -168,13 +168,8 @@ MmwResult mmw_create_subscriber(const char* topic, void (*mmw_callback)(const ch
                         ackMsg.topic = msg.topic;
 
                         // TODO: REMOVE THIS RANDOM MESSAGE DROPPING THIS IS FOR TESTING
-                        // sendMessage(sock_fd, g_serializer->serialize(ackMsg));
-                        if (rand() % 5 != 0) { // 80% chance to send ACK
-                            sendMessage(sock_fd, g_serializer->serialize(ackMsg));
-                            spdlog::info("ACK sent for {}", ackMsg.messageId);
-                        } else {
-                            spdlog::warn("Dropping ACK for {}", ackMsg.messageId);
-                        }
+                        sendMessage(sock_fd, g_serializer->serialize(ackMsg));
+                        spdlog::info("ACK sent for {}", ackMsg.messageId);
                     }
                 }
             } catch (const std::exception& e) {
@@ -256,14 +251,8 @@ MmwResult mmw_create_subscriber_raw(const char* topic, void (*mmw_callback)(void
                         ackMsg.type = "ack";
                         ackMsg.topic = msg.topic;
 
-                        // TODO: REMOVE THIS RANDOM MESSAGE DROPPING THIS IS FOR TESTING
-                        // sendMessage(sock_fd, g_serializer->serialize(ackMsg));
-                        if (rand() % 5 != 0) { // 80% chance to send ACK
-                            sendMessage(sock_fd, g_serializer->serialize(ackMsg));
-                            spdlog::info("ACK sent for {}", ackMsg.messageId);
-                        } else {
-                            spdlog::warn("Dropping ACK for {}", ackMsg.messageId);
-                        }
+                        sendMessage(sock_fd, g_serializer->serialize(ackMsg));
+                        spdlog::info("ACK sent for {}", ackMsg.messageId);
                     }
                 }
             } catch (const std::exception& e) {
