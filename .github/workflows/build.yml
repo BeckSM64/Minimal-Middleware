@@ -23,7 +23,12 @@ jobs:
           name: mmw-build
           path: |
             build/
-            python/
+
+      - name: Upload python directory
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-artifact
+          path: python/
 
   smoke-test:
     runs-on: ubuntu-latest
@@ -34,9 +39,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: mmw-build
-          path: |
-            build/
-            python/
+          path: build/
+      - name: Download python directory
+        uses: actions/download-artifact@v4
+        with:
+          name: python-artifact
+          path: python/
       - name: Make binaries executable
         run: chmod +x build/broker build/subscribe build/publish
       - name: Run smoke tests
@@ -60,9 +68,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: mmw-build
-          path: |
-            build/
-            python/
+          path: build/
+      - name: Download python directory
+        uses: actions/download-artifact@v4
+        with:
+          name: python-artifact
+          path: python/
       - name: Install Python build dependencies
         run: |
           sudo apt-get update
