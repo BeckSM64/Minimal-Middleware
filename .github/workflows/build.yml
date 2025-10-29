@@ -80,7 +80,7 @@ jobs:
       - name: Install the wheel
         run: |
           python3 -m pip install --upgrade pip
-          python3 -m pip install --force-reinstall ./dist/mmw_python-0.1.0-cp312-cp312-linux_x86_64.whl
+          python3 -m pip install --force-reinstall ./dist/mmw_python-0.1.0-py3-none-any.whl
 
       - name: Print Python binding functions
         run: |
