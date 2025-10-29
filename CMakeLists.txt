@@ -50,7 +50,7 @@ target_include_directories(mmw_python PRIVATE
 target_link_libraries(mmw_python PRIVATE mmw)
 
 # Force output into the python/ folder
-set_target_properties(_mmw_python PROPERTIES
+set_target_properties(mmw_python PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/python"
 )
 
