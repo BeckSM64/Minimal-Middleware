@@ -77,10 +77,11 @@ jobs:
         with:
           python-version: 3.12
 
-      - name: Install the wheel
+      - name: Install Python wheel
         run: |
           python3 -m pip install --upgrade pip
-          python3 -m pip install --force-reinstall ./dist/mmw_python-0.1.0-py3-none-any.whl
+          cd dist
+          python3 -m pip install mmw_python-0.1.0-py3-none-any.whl
 
       - name: Print Python binding functions
         run: |
