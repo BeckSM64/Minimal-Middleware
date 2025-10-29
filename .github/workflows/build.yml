@@ -77,12 +77,17 @@ jobs:
         with:
           python-version: 3.12
 
+      - name: Download Python wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: python-wheel
+          path: dist/
+
       - name: Install wheel from dist
         run: |
           pwd
           ls
-          cd dist/
-          ls
+          ls dist/
           python3 -m pip install --upgrade pip
           python3 -m pip install dist/mmw_python-0.1.0-py3-none-any.whl
 
@@ -93,4 +98,5 @@ jobs:
             print('Python binding imported successfully')
             print('Available functions:', dir(mmw_python))
             "
+
 
