@@ -49,6 +49,11 @@ target_include_directories(mmw_python PRIVATE
 )
 target_link_libraries(mmw_python PRIVATE mmw)
 
+# Force output into the python/ folder
+set_target_properties(_mmw_python PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/python"
+)
+
 # Add BUILD_SHARED_LIBS option
 option(BUILD_SHARED_LIBS "Build as shared library" ON)
 
