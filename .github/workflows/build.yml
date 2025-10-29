@@ -34,7 +34,9 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: mmw-build
-          path: build/
+          path: 
+            build/
+            python/
       - name: Make binaries executable
         run: chmod +x build/broker build/subscribe build/publish
       - name: Run smoke tests
@@ -58,7 +60,9 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: mmw-build
-          path: build/
+          path:
+            build/
+            python/
       - name: Install Python build dependencies
         run: |
           sudo apt-get update
