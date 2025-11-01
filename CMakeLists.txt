@@ -1,17 +1,17 @@
 cmake_minimum_required(VERSION 3.0)
 project(MiddlewareTest)
 
-# Options to control building extras
-option(BUILD_BROKER "Build broker executable" ON)
-option(BUILD_SAMPLE_APPS "Build sample apps (publish/subscribe/etc)" ON)
-
-# Use C++11
+# Use C++11 standard (compatible with older code)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Fetch dependencies (yaml-cpp, json, spdlog, pybind11, cereal)
-include(FetchContent)
+# Options for what to build
+option(BUILD_BROKER "Build broker executable" ON)
+option(BUILD_SAMPLE_APPS "Build sample apps (publish/subscribe etc.)" ON)
+option(BUILD_PYTHON_MODULE "Build Python bindings" ON)
 
+# Get YAML CPP Library
+include(FetchContent)
 FetchContent_Declare(
   yaml-cpp
   GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
@@ -19,6 +19,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(yaml-cpp)
 
+# Get JSON library
 FetchContent_Declare(
   json
   GIT_REPOSITORY https://github.com/nlohmann/json.git
@@ -26,6 +27,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(json)
 
+# Get SPD Log Library
 FetchContent_Declare(
   spdlog
   GIT_REPOSITORY https://github.com/gabime/spdlog.git
@@ -33,6 +35,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(spdlog)
 
+# Fetch pybind11
 set(PYBIND11_FINDPYTHON NEW CACHE STRING "")
 set(PYBIND11_PYTHON_VERSION 3.12 CACHE STRING "")
 set(_Python_EXECUTABLE_DEBUG "" CACHE FILEPATH "Suppress debug executable error")
@@ -43,6 +46,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(pybind11)
 
+# Fetch Cereal
 set(CEREAL_USE_BOOST OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
   cereal
@@ -51,7 +55,7 @@ FetchContent_Declare(
 )
 FetchContent_Populate(cereal)
 
-# Serializer selection
+# Set the serializer
 if(CEREAL_SERIALIZER)
     add_compile_definitions(CEREAL_SERIALIZER)
     set(SERIALIZER_SRC ${CMAKE_SOURCE_DIR}/src/serialization/CerealSerializer.cpp)
@@ -64,7 +68,10 @@ else()
     set(SERIALIZER_SRC ${CMAKE_SOURCE_DIR}/src/serialization/CerealSerializer.cpp)
 endif()
 
-# Build library
+# Add BUILD_SHARED_LIBS option
+option(BUILD_SHARED_LIBS "Build as shared library" ON)
+
+# Create the mw library
 add_library(
     mmw
     ${CMAKE_SOURCE_DIR}/src/MMW.cpp
@@ -73,19 +80,25 @@ add_library(
     ${SERIALIZER_SRC}
     ${CMAKE_SOURCE_DIR}/src/network/SocketAbstraction.cpp
 )
+
+# Create an alias target
 add_library(mmw::mmw ALIAS mmw)
+
+# Export include directories
 target_include_directories(mmw PUBLIC
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/includes>
     $<INSTALL_INTERFACE:include>
 )
-target_include_directories(mmw PRIVATE ${CMAKE_SOURCE_DIR} ${cereal_SOURCE_DIR}/include/)
+target_include_directories(mmw PRIVATE ${CMAKE_SOURCE_DIR}/ ${CMAKE_SOURCE_DIR}/includes/ ${cereal_SOURCE_DIR}/include/)
+
+# Link Libraries
 if(WIN32)
-  target_link_libraries(mmw PUBLIC yaml-cpp::yaml-cpp nlohmann_json::nlohmann_json spdlog::spdlog_header_only ws2_32)
+    target_link_libraries(mmw PUBLIC yaml-cpp::yaml-cpp nlohmann_json::nlohmann_json spdlog::spdlog_header_only ws2_32)
 else()
-  target_link_libraries(mmw PUBLIC yaml-cpp::yaml-cpp nlohmann_json::nlohmann_json spdlog::spdlog_header_only pthread)
+    target_link_libraries(mmw PUBLIC yaml-cpp::yaml-cpp nlohmann_json::nlohmann_json spdlog::spdlog_header_only)
 endif()
 
-# Build broker only if option is ON
+# Build broker if requested
 if(BUILD_BROKER)
     add_executable(
         broker ${CMAKE_SOURCE_DIR}/broker/Broker.cpp
@@ -95,13 +108,13 @@ if(BUILD_BROKER)
     )
     target_include_directories(broker PRIVATE ${CMAKE_SOURCE_DIR}/includes/ ${cereal_SOURCE_DIR}/include/)
     if(WIN32)
-      target_link_libraries(broker nlohmann_json::nlohmann_json pthread spdlog::spdlog_header_only ws2_32)
+        target_link_libraries(broker nlohmann_json::nlohmann_json pthread spdlog::spdlog_header_only ws2_32)
     else()
-      target_link_libraries(broker nlohmann_json::nlohmann_json pthread spdlog::spdlog_header_only)
+        target_link_libraries(broker nlohmann_json::nlohmann_json pthread spdlog::spdlog_header_only)
     endif()
 endif()
 
-# Build sample apps only if option is ON
+# Build sample apps if requested
 if(BUILD_SAMPLE_APPS)
     add_executable(publish ${CMAKE_SOURCE_DIR}/app/Publish.cpp)
     add_executable(subscribe ${CMAKE_SOURCE_DIR}/app/Subscribe.cpp)
@@ -123,11 +136,24 @@ if(BUILD_SAMPLE_APPS)
     target_link_libraries(subscribe_c PRIVATE mmw pthread)
     target_link_libraries(publish_raw PRIVATE mmw pthread)
     target_link_libraries(subscribe_raw PRIVATE mmw pthread)
+
+    # Copy config if it exists
+    if(EXISTS "${CMAKE_SOURCE_DIR}/config/config.yml")
+        file(COPY "${CMAKE_SOURCE_DIR}/config/config.yml" DESTINATION "${CMAKE_SOURCE_DIR}/build/")
+    endif()
 endif()
 
-# Copy config if exists
-if(EXISTS "${CMAKE_SOURCE_DIR}/config/config.yml")
-    file(COPY "${CMAKE_SOURCE_DIR}/config/config.yml" DESTINATION "${CMAKE_SOURCE_DIR}/build/")
+# Build Python module if requested
+if(BUILD_PYTHON_MODULE)
+    pybind11_add_module(mmw_python python/Bindings.cpp)
+    target_include_directories(mmw_python PRIVATE 
+        ${CMAKE_SOURCE_DIR}/ 
+        ${CMAKE_SOURCE_DIR}/includes/
+    )
+    target_link_libraries(mmw_python PRIVATE mmw)
+    set_target_properties(mmw_python PROPERTIES
+        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/python"
+    )
 endif()
 
 # Copy Cereal license
