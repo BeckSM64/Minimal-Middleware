@@ -62,6 +62,15 @@ set_target_properties(mmw_python PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/python"
 )
 
+# Set the serializer
+if(CEREAL_SERIALIZER)
+    add_compile_definitions(CEREAL_SERIALIZER)
+elseif(JSON_SERIALIZER)
+    add_compile_definitions(JSON_SERIALIZER)
+else()
+    message(FATAL_ERROR "You must define either CEREAL_SERIALIZER or JSON_SERIALIZER")
+endif()
+
 # Add BUILD_SHARED_LIBS option
 option(BUILD_SHARED_LIBS "Build as shared library" ON)
 
@@ -70,6 +79,7 @@ add_library(
     mmw
     ${CMAKE_SOURCE_DIR}/src/MMW.cpp
     ${CMAKE_SOURCE_DIR}/src/ConfigFileParser.cpp
+    ${CMAKE_SOURCE_DIR}/src/serialization/SerializerAbstraction.cpp
     ${CMAKE_SOURCE_DIR}/src/serialization/JsonSerializer.cpp
     ${CMAKE_SOURCE_DIR}/src/serialization/CerealSerializer.cpp
     ${CMAKE_SOURCE_DIR}/src/network/SocketAbstraction.cpp
@@ -88,6 +98,7 @@ target_include_directories(mmw PRIVATE ${CMAKE_SOURCE_DIR}/ ${CMAKE_SOURCE_DIR}/
 # Add executables
 add_executable(
   broker ${CMAKE_SOURCE_DIR}/broker/Broker.cpp
+  ${CMAKE_SOURCE_DIR}/src/serialization/SerializerAbstraction.cpp
   ${CMAKE_SOURCE_DIR}/src/serialization/JsonSerializer.cpp
   ${CMAKE_SOURCE_DIR}/src/serialization/CerealSerializer.cpp
   ${CMAKE_SOURCE_DIR}/src/network/SocketAbstraction.cpp
@@ -124,6 +135,6 @@ target_link_libraries(subscribe_raw PRIVATE mmw pthread)
 # Copy config to build directory for sample apps
 file(COPY "${CMAKE_SOURCE_DIR}/config/config.yml" DESTINATION "${CMAKE_SOURCE_DIR}/build/")
 
-# Copy Cereal's license into our distribution
+# Copy Cereal's license into third party license folder
 file(COPY ${cereal_SOURCE_DIR}/LICENSE DESTINATION ${CMAKE_SOURCE_DIR}/third_party_licenses/)
 file(RENAME ${CMAKE_SOURCE_DIR}/third_party_licenses/LICENSE ${CMAKE_SOURCE_DIR}/third_party_licenses/cereal_LICENSE.txt)

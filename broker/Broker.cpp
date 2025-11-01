@@ -12,7 +12,7 @@
 
 #include "MmwMessage.h"
 #include "IMmwMessageSerializer.h"
-#include "CerealSerializer.h"
+#include "SerializerAbstraction.h"
 #include "SocketAbstraction.h"
 
 #define PORT 5000
@@ -207,8 +207,7 @@ int main() {
     signal(SIGINT, handleSignal);
     signal(SIGTERM, handleSignal);
 
-    static CerealSerializer serializer;
-    g_serializer = &serializer;
+    g_serializer = CreateSerializer();
 
     struct sockaddr_in address;
     socklen_t addrlen = sizeof(address);
