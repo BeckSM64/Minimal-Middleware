@@ -148,8 +148,10 @@ target_link_libraries(subscribe_c PRIVATE mmw pthread)
 target_link_libraries(publish_raw PRIVATE mmw pthread)
 target_link_libraries(subscribe_raw PRIVATE mmw pthread)
 
-# Copy config to build directory for sample apps
-file(COPY "${CMAKE_SOURCE_DIR}/config/config.yml" DESTINATION "${CMAKE_SOURCE_DIR}/build/")
+# Copy config to build directory for sample apps if it exists
+if(EXISTS "${CMAKE_SOURCE_DIR}/config/config.yml")
+    file(COPY "${CMAKE_SOURCE_DIR}/config/config.yml" DESTINATION "${CMAKE_SOURCE_DIR}/build/")
+endif()
 
 # Copy Cereal's license into third party license folder
 file(COPY ${cereal_SOURCE_DIR}/LICENSE DESTINATION ${CMAKE_SOURCE_DIR}/third_party_licenses/)
