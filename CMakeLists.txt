@@ -34,12 +34,24 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(spdlog)
 
 # Fetch pybind11
+set(PYBIND11_FINDPYTHON NEW CACHE STRING "")
+set(PYBIND11_PYTHON_VERSION 3.12 CACHE STRING "")
+set(_Python_EXECUTABLE_DEBUG "" CACHE FILEPATH "Suppress debug executable error")
 FetchContent_Declare(
     pybind11
     GIT_REPOSITORY https://github.com/pybind/pybind11.git
     GIT_TAG        v3.0.1
 )
 FetchContent_MakeAvailable(pybind11)
+
+# Fetch Cereal
+set(CEREAL_USE_BOOST OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(
+  cereal
+  GIT_REPOSITORY https://github.com/USCiLab/cereal.git
+  GIT_TAG v1.3.2
+)
+FetchContent_Populate(cereal)
 
 # Build the Python module
 pybind11_add_module(mmw_python python/Bindings.cpp)
@@ -54,6 +66,19 @@ set_target_properties(mmw_python PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/python"
 )
 
+# Set the serializer
+if(CEREAL_SERIALIZER)
+    add_compile_definitions(CEREAL_SERIALIZER)
+    set(SERIALIZER_SRC ${CMAKE_SOURCE_DIR}/src/serialization/CerealSerializer.cpp)
+elseif(JSON_SERIALIZER)
+    add_compile_definitions(JSON_SERIALIZER)
+    set(SERIALIZER_SRC ${CMAKE_SOURCE_DIR}/src/serialization/JsonSerializer.cpp)
+else()
+    message(WARNING "No serializer provided, using CEREAL_SERIALIZER by default")
+    add_compile_definitions(CEREAL_SERIALIZER)
+    set(SERIALIZER_SRC ${CMAKE_SOURCE_DIR}/src/serialization/CerealSerializer.cpp)
+endif()
+
 # Add BUILD_SHARED_LIBS option
 option(BUILD_SHARED_LIBS "Build as shared library" ON)
 
@@ -62,7 +87,8 @@ add_library(
     mmw
     ${CMAKE_SOURCE_DIR}/src/MMW.cpp
     ${CMAKE_SOURCE_DIR}/src/ConfigFileParser.cpp
-    ${CMAKE_SOURCE_DIR}/src/serialization/JsonSerializer.cpp
+    ${CMAKE_SOURCE_DIR}/src/serialization/SerializerAbstraction.cpp
+    ${SERIALIZER_SRC}
     ${CMAKE_SOURCE_DIR}/src/network/SocketAbstraction.cpp
 )
 
@@ -74,10 +100,15 @@ else(WIN32)
 endif(WIN32)
 
 # Library includes
-target_include_directories(mmw PRIVATE ${CMAKE_SOURCE_DIR}/ ${CMAKE_SOURCE_DIR}/includes/)
+target_include_directories(mmw PRIVATE ${CMAKE_SOURCE_DIR}/ ${CMAKE_SOURCE_DIR}/includes/ ${cereal_SOURCE_DIR}/include/)
 
 # Add executables
-add_executable(broker ${CMAKE_SOURCE_DIR}/broker/Broker.cpp ${CMAKE_SOURCE_DIR}/src/serialization/JsonSerializer.cpp ${CMAKE_SOURCE_DIR}/src/network/SocketAbstraction.cpp)
+add_executable(
+  broker ${CMAKE_SOURCE_DIR}/broker/Broker.cpp
+  ${CMAKE_SOURCE_DIR}/src/serialization/SerializerAbstraction.cpp
+  ${SERIALIZER_SRC}
+  ${CMAKE_SOURCE_DIR}/src/network/SocketAbstraction.cpp
+)
 add_executable(publish ${CMAKE_SOURCE_DIR}/app/Publish.cpp)
 add_executable(subscribe ${CMAKE_SOURCE_DIR}/app/Subscribe.cpp)
 add_executable(publish_c ${CMAKE_SOURCE_DIR}/app/Publish.c)
@@ -88,7 +119,7 @@ add_executable(subscribe_raw ${CMAKE_SOURCE_DIR}/app/SubscribeRaw.cpp)
 # Application includes
 target_include_directories(publish PRIVATE ${CMAKE_SOURCE_DIR}/)
 target_include_directories(subscribe PRIVATE ${CMAKE_SOURCE_DIR}/)
-target_include_directories(broker PRIVATE ${CMAKE_SOURCE_DIR}/includes/)
+target_include_directories(broker PRIVATE ${CMAKE_SOURCE_DIR}/includes/ ${cereal_SOURCE_DIR}/include/)
 target_include_directories(publish_c PRIVATE ${CMAKE_SOURCE_DIR}/)
 target_include_directories(subscribe_c PRIVATE ${CMAKE_SOURCE_DIR}/)
 target_include_directories(publish_raw PRIVATE ${CMAKE_SOURCE_DIR}/)
@@ -109,3 +140,7 @@ target_link_libraries(subscribe_raw PRIVATE mmw pthread)
 
 # Copy config to build directory for sample apps
 file(COPY "${CMAKE_SOURCE_DIR}/config/config.yml" DESTINATION "${CMAKE_SOURCE_DIR}/build/")
+
+# Copy Cereal's license into third party license folder
+file(COPY ${cereal_SOURCE_DIR}/LICENSE DESTINATION ${CMAKE_SOURCE_DIR}/third_party_licenses/)
+file(RENAME ${CMAKE_SOURCE_DIR}/third_party_licenses/LICENSE ${CMAKE_SOURCE_DIR}/third_party_licenses/cereal_LICENSE.txt)

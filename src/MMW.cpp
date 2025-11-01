@@ -12,7 +12,7 @@
 #include "MMW.h"
 #include "ConfigFileParser.h"
 #include "IMmwMessageSerializer.h"
-#include "JsonSerializer.h"
+#include "SerializerAbstraction.h"
 #include "SocketAbstraction.h"
 
 static std::string hostname = "127.0.0.1";
@@ -56,7 +56,7 @@ MmwResult mmw_initialize(const char* configPath) {
     g_reliability = configParser.getBrokerReliability() == "reliable";
 
     // Initialize the serializer
-    g_serializer = new JsonSerializer();
+    g_serializer = CreateSerializer();
 
     return MMW_OK;
 }
