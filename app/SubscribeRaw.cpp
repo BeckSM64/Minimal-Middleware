@@ -27,7 +27,7 @@ void testRawMessageCallback(void* message) {
 int main() {
 
     // Initialize library settings
-    mmw_initialize("config.yml");
+    mmw_initialize("127.0.0.1", 5000);
 
     mmw_create_subscriber_raw("Raw Message Topic", testRawMessageCallback);
 
