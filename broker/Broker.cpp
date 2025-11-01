@@ -12,7 +12,7 @@
 
 #include "MmwMessage.h"
 #include "IMmwMessageSerializer.h"
-#include "JsonSerializer.h"
+#include "CerealSerializer.h"
 #include "SocketAbstraction.h"
 
 #define PORT 5000
@@ -207,7 +207,7 @@ int main() {
     signal(SIGINT, handleSignal);
     signal(SIGTERM, handleSignal);
 
-    static JsonSerializer serializer;
+    static CerealSerializer serializer;
     g_serializer = &serializer;
 
     struct sockaddr_in address;

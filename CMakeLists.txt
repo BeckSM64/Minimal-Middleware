@@ -41,6 +41,14 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(pybind11)
 
+# Fetch Cereal
+FetchContent_Declare(
+  cereal
+  GIT_REPOSITORY https://github.com/USCiLab/cereal.git
+  GIT_TAG v1.3.2
+)
+FetchContent_Populate(cereal)
+
 # Build the Python module
 pybind11_add_module(mmw_python python/Bindings.cpp)
 target_include_directories(mmw_python PRIVATE 
@@ -63,6 +71,7 @@ add_library(
     ${CMAKE_SOURCE_DIR}/src/MMW.cpp
     ${CMAKE_SOURCE_DIR}/src/ConfigFileParser.cpp
     ${CMAKE_SOURCE_DIR}/src/serialization/JsonSerializer.cpp
+    ${CMAKE_SOURCE_DIR}/src/serialization/CerealSerializer.cpp
     ${CMAKE_SOURCE_DIR}/src/network/SocketAbstraction.cpp
 )
 
@@ -74,10 +83,15 @@ else(WIN32)
 endif(WIN32)
 
 # Library includes
-target_include_directories(mmw PRIVATE ${CMAKE_SOURCE_DIR}/ ${CMAKE_SOURCE_DIR}/includes/)
+target_include_directories(mmw PRIVATE ${CMAKE_SOURCE_DIR}/ ${CMAKE_SOURCE_DIR}/includes/ ${cereal_SOURCE_DIR}/include/)
 
 # Add executables
-add_executable(broker ${CMAKE_SOURCE_DIR}/broker/Broker.cpp ${CMAKE_SOURCE_DIR}/src/serialization/JsonSerializer.cpp ${CMAKE_SOURCE_DIR}/src/network/SocketAbstraction.cpp)
+add_executable(
+  broker ${CMAKE_SOURCE_DIR}/broker/Broker.cpp
+  ${CMAKE_SOURCE_DIR}/src/serialization/JsonSerializer.cpp
+  ${CMAKE_SOURCE_DIR}/src/serialization/CerealSerializer.cpp
+  ${CMAKE_SOURCE_DIR}/src/network/SocketAbstraction.cpp
+)
 add_executable(publish ${CMAKE_SOURCE_DIR}/app/Publish.cpp)
 add_executable(subscribe ${CMAKE_SOURCE_DIR}/app/Subscribe.cpp)
 add_executable(publish_c ${CMAKE_SOURCE_DIR}/app/Publish.c)
@@ -88,7 +102,7 @@ add_executable(subscribe_raw ${CMAKE_SOURCE_DIR}/app/SubscribeRaw.cpp)
 # Application includes
 target_include_directories(publish PRIVATE ${CMAKE_SOURCE_DIR}/)
 target_include_directories(subscribe PRIVATE ${CMAKE_SOURCE_DIR}/)
-target_include_directories(broker PRIVATE ${CMAKE_SOURCE_DIR}/includes/)
+target_include_directories(broker PRIVATE ${CMAKE_SOURCE_DIR}/includes/ ${cereal_SOURCE_DIR}/include/)
 target_include_directories(publish_c PRIVATE ${CMAKE_SOURCE_DIR}/)
 target_include_directories(subscribe_c PRIVATE ${CMAKE_SOURCE_DIR}/)
 target_include_directories(publish_raw PRIVATE ${CMAKE_SOURCE_DIR}/)
@@ -109,3 +123,7 @@ target_link_libraries(subscribe_raw PRIVATE mmw pthread)
 
 # Copy config to build directory for sample apps
 file(COPY "${CMAKE_SOURCE_DIR}/config/config.yml" DESTINATION "${CMAKE_SOURCE_DIR}/build/")
+
+# Copy Cereal's license into our distribution
+file(COPY ${cereal_SOURCE_DIR}/LICENSE DESTINATION ${CMAKE_SOURCE_DIR}/third_party_licenses/)
+file(RENAME ${CMAKE_SOURCE_DIR}/third_party_licenses/LICENSE ${CMAKE_SOURCE_DIR}/third_party_licenses/cereal_LICENSE.txt)
