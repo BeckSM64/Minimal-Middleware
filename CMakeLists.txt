@@ -74,7 +74,9 @@ elseif(JSON_SERIALIZER)
     add_compile_definitions(JSON_SERIALIZER)
     set(SERIALIZER_SRC ${CMAKE_SOURCE_DIR}/src/serialization/JsonSerializer.cpp)
 else()
-    message(FATAL_ERROR "You must define either CEREAL_SERIALIZER or JSON_SERIALIZER")
+    message(WARNING "No serializer provided, using CEREAL_SERIALIZER by default")
+    add_compile_definitions(CEREAL_SERIALIZER)
+    set(SERIALIZER_SRC ${CMAKE_SOURCE_DIR}/src/serialization/CerealSerializer.cpp)
 endif()
 
 # Add BUILD_SHARED_LIBS option
