@@ -92,6 +92,15 @@ add_library(
     ${CMAKE_SOURCE_DIR}/src/network/SocketAbstraction.cpp
 )
 
+# Create an alias target so other projects can do target_link_libraries(my_app PRIVATE mmw::mmw)
+add_library(mmw::mmw ALIAS mmw)
+
+# Export include directories for consumers
+target_include_directories(mmw PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/includes>
+    $<INSTALL_INTERFACE:include> # only relevant if installed later
+)
+
 # Link Libraries, only link ws2_32 if we're on Windows
 if(WIN32)
   target_link_libraries(mmw PUBLIC yaml-cpp::yaml-cpp nlohmann_json::nlohmann_json spdlog::spdlog_header_only ws2_32)
