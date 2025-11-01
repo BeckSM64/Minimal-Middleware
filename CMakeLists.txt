@@ -6,9 +6,9 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Options for what to build
-option(BUILD_BROKER "Build broker executable" ON)
-option(BUILD_SAMPLE_APPS "Build sample apps (publish/subscribe etc.)" ON)
-option(BUILD_PYTHON_MODULE "Build Python bindings" ON)
+option(BUILD_BROKER "Build broker executable" OFF)
+option(BUILD_SAMPLE_APPS "Build sample apps (publish/subscribe etc.)" OFF)
+option(BUILD_PYTHON_MODULE "Build Python bindings" OFF)
 
 # Get YAML CPP Library
 include(FetchContent)
