@@ -42,8 +42,8 @@ PYBIND11_MODULE(mmw_python, m) {
     m.def("create_publisher", &mmw_create_publisher, py::arg("topic"));
     m.def("create_subscriber", &mmw_create_subscriber, py::arg("topic"), py::arg("callback"));
     m.def("create_subscriber_raw", &mmw_create_subscriber_raw, py::arg("topic"), py::arg("callback"));
-    m.def("publish", &mmw_publish, py::arg("topic"), py::arg("message"));
-    m.def("publish_raw", &mmw_publish_raw, py::arg("topic"), py::arg("message"), py::arg("size"));
+    m.def("publish", &mmw_publish, py::arg("topic"), py::arg("message"), py::arg("reliability"));
+    m.def("publish_raw", &mmw_publish_raw, py::arg("topic"), py::arg("message"), py::arg("size"), py::arg("reliability"));
     m.def("cleanup", &mmw_cleanup);
 
     m.def("create_subscriber", [](const char* topic, py::function callback) {

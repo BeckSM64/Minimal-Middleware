@@ -9,7 +9,6 @@ bool ConfigFileParser::parseConfigFile(const std::string &filename) {
         if (config["broker"]) {
             brokerIp = config["broker"]["ip"].as<std::string>();
             brokerPort = config["broker"]["port"].as<int>();
-            reliability = config["broker"]["reliability"].as<std::string>();
             spdlog::info("Successfully parsed config file");
             spdlog::info("Broker IP:{}", brokerIp);
             spdlog::info("Broker Port:{}", brokerPort);
@@ -27,8 +26,4 @@ std::string ConfigFileParser::getBrokerIp() {
 
 int ConfigFileParser::getBrokerPort() {
     return brokerPort;
-}
-
-std::string ConfigFileParser::getBrokerReliability() {
-    return reliability;
 }

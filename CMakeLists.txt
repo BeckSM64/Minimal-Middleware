@@ -100,6 +100,7 @@ else(WIN32)
 endif(WIN32)
 
 # Library includes
+# TODO: Should cereal includes be included conditionally?
 target_include_directories(mmw PRIVATE ${CMAKE_SOURCE_DIR}/ ${CMAKE_SOURCE_DIR}/includes/ ${cereal_SOURCE_DIR}/include/)
 
 # Add executables

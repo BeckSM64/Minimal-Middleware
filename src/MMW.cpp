@@ -25,7 +25,6 @@ static std::mutex socketListMutex;
 static std::vector<std::thread> subscriberThreads;
 static std::vector<std::atomic<bool>*> subscriberRunFlags;
 static IMmwMessageSerializer* g_serializer = nullptr;
-static bool g_reliability = true; // default to reliable
 
 
 /**
@@ -53,7 +52,6 @@ MmwResult mmw_initialize(const char* configPath) {
     configParser.parseConfigFile(configPath);
     hostname = configParser.getBrokerIp();
     brokerPort = configParser.getBrokerPort();
-    g_reliability = configParser.getBrokerReliability() == "reliable";
 
     // Initialize the serializer
     g_serializer = CreateSerializer();
@@ -272,7 +270,7 @@ MmwResult mmw_create_subscriber_raw(const char* topic, void (*mmw_callback)(void
 /**
  * Publish a message
  */
-MmwResult mmw_publish(const char* topic, const char* payload) {
+MmwResult mmw_publish(const char* topic, const char* payload, MmwReliability reliability) {
     auto it = publisherTopicToSocketFdMap.find(topic);
     if (it == publisherTopicToSocketFdMap.end()) {
         return MMW_ERROR;
@@ -280,7 +278,7 @@ MmwResult mmw_publish(const char* topic, const char* payload) {
 
     int sock_fd = it->second;
     MmwMessage msg{0, "publish", topic, payload};
-    msg.reliability = g_reliability;
+    msg.reliability = reliability;
     if (!sendMessage(sock_fd, g_serializer->serialize(msg))) {
         spdlog::error("Failed to send message on topic {}", topic);
         return MMW_ERROR;
@@ -291,7 +289,7 @@ MmwResult mmw_publish(const char* topic, const char* payload) {
 /**
  * Publish a message of raw bytes
  */
-MmwResult mmw_publish_raw(const char* topic, void* payload, size_t size) {
+MmwResult mmw_publish_raw(const char* topic, void* payload, size_t size, MmwReliability reliability) {
     auto it = publisherTopicToSocketFdMap.find(topic);
     if (it == publisherTopicToSocketFdMap.end()) {
         return MMW_ERROR;
@@ -299,7 +297,7 @@ MmwResult mmw_publish_raw(const char* topic, void* payload, size_t size) {
 
     int sock_fd = it->second;
     MmwMessage msg{0, "publish", topic, "", payload, size};
-    msg.reliability = g_reliability;
+    msg.reliability = reliability;
     if (!sendMessage(sock_fd, g_serializer->serialize_raw(msg))) {
         spdlog::error("Failed to send message on topic {}", topic);
         return MMW_ERROR;

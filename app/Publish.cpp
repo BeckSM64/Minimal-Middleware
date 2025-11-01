@@ -9,9 +9,8 @@ int main() {
     mmw_create_publisher("Test Topic");
 
     // Publish test message
-    for (int i = 0; i < 50; i++) {
-        mmw_publish("Test Topic", "This is a test message for Test Topic");
-    }
+    mmw_publish("Test Topic", "This is a test message for Test Topic, best effort", MMW_BEST_EFFORT);
+    mmw_publish("Test Topic", "This is a test message for Test Topic, reliable", MMW_RELIABLE);
 
     // Clean up publishers
     mmw_cleanup();
