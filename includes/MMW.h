@@ -32,7 +32,7 @@ typedef enum {
  * @param configPath Path to configuration file (can be NULL for defaults).
  * @return MMW_OK on success, MMW_ERROR on failure.
  */
-MmwResult mmw_initialize(const char* configPath);
+MmwResult mmw_initialize(const char* brokerIp, unsigned short port);
 
 /**
  * @brief Create a publisher for a topic.

@@ -47,14 +47,19 @@ inline bool sendMessage(int sock_fd, const std::string& data) {
 /**
  * Initialize library settings
  */
-MmwResult mmw_initialize(const char* configPath) {
-    ConfigFileParser configParser;
-    configParser.parseConfigFile(configPath);
-    hostname = configParser.getBrokerIp();
-    brokerPort = configParser.getBrokerPort();
+MmwResult mmw_initialize(const char* brokerIp, unsigned short port) {
 
-    // Initialize the serializer
+    if (!brokerIp || port == 0) {
+        return MMW_ERROR;
+    }
+
+    hostname = brokerIp;
+    brokerPort = port;
+
     g_serializer = CreateSerializer();
+    if (!g_serializer) {
+        return MMW_ERROR;
+    }
 
     return MMW_OK;
 }

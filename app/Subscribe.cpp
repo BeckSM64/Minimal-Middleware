@@ -10,7 +10,7 @@ void test_callback(const char *message) {
 int main() {
 
     // Initialize library settings
-    mmw_initialize("config.yml");
+    mmw_initialize("127.0.0.1", 5000);
 
     // Test API call
     mmw_create_subscriber("Test Topic", test_callback);

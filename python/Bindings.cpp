@@ -38,7 +38,7 @@ PYBIND11_MODULE(mmw_python, m) {
         .value("MMW_ERROR", MMW_ERROR)
         .export_values();
 
-    m.def("initialize", &mmw_initialize, py::arg("configPath") = nullptr);
+    m.def("initialize", &mmw_initialize, py::arg("brokerIp"), py::arg("port"));
     m.def("create_publisher", &mmw_create_publisher, py::arg("topic"));
     m.def("create_subscriber", &mmw_create_subscriber, py::arg("topic"), py::arg("callback"));
     m.def("create_subscriber_raw", &mmw_create_subscriber_raw, py::arg("topic"), py::arg("callback"));
