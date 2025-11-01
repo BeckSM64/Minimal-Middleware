@@ -15,6 +15,15 @@ typedef enum {
 } MmwResult;
 
 /**
+ * @enum MmwReliability
+ * @brief Reliability of MMW messages.
+ */
+typedef enum {
+    MMW_BEST_EFFORT, // Fire and forget
+    MMW_RELIABLE // At least once
+} MmwReliability;
+
+/**
  * @brief Initialize the middleware library.
  *
  * Must be called before creating publishers or subscribers.
@@ -66,7 +75,7 @@ MmwResult mmw_create_subscriber_raw(const char* topic, void (*mmw_callback)(void
  * @param message The message to publish.
  * @return MMW_OK on success, MMW_ERROR on failure.
  */
-MmwResult mmw_publish(const char* topic, const char* message);
+MmwResult mmw_publish(const char* topic, const char* message, MmwReliability reliability);
 
 /**
  * @brief Publish a message as raw bytes.
@@ -78,7 +87,7 @@ MmwResult mmw_publish(const char* topic, const char* message);
  * @param size Size of the message in bytes.
  * @return MMW_OK on success, MMW_ERROR on failure.
  */
-MmwResult mmw_publish_raw(const char* topic, void* message, size_t size);
+MmwResult mmw_publish_raw(const char* topic, void* message, size_t size, MmwReliability reliability);
 
 /**
  * @brief Clean up all middleware resources.

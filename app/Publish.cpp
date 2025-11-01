@@ -10,7 +10,7 @@ int main() {
 
     // Publish test message
     for (int i = 0; i < 50; i++) {
-        mmw_publish("Test Topic", "This is a test message for Test Topic");
+        mmw_publish("Test Topic", "This is a test message for Test Topic", MMW_BEST_EFFORT);
     }
 
     // Clean up publishers

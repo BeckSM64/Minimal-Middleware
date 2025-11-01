@@ -25,7 +25,7 @@ int main() {
 
     mmw_create_publisher("Raw Message Topic");
 
-    mmw_publish_raw("Raw Message Topic", &testRawMessageStruct, sizeof(testRawMessageStruct));
+    mmw_publish_raw("Raw Message Topic", &testRawMessageStruct, sizeof(testRawMessageStruct), MMW_RELIABLE);
 
     mmw_cleanup();
 }
