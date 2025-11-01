@@ -34,6 +34,8 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(spdlog)
 
 # Fetch pybind11
+set(PYBIND11_FINDPYTHON NEW CACHE STRING "")
+set(PYBIND11_PYTHON_VERSION 3.12 CACHE STRING "")
 FetchContent_Declare(
     pybind11
     GIT_REPOSITORY https://github.com/pybind/pybind11.git
@@ -42,6 +44,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(pybind11)
 
 # Fetch Cereal
+set(CEREAL_USE_BOOST OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
   cereal
   GIT_REPOSITORY https://github.com/USCiLab/cereal.git
