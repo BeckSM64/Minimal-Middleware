@@ -18,7 +18,7 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake ../ -DCEREAL_SERIALIZER=ON
+          cmake ../ -DCEREAL_SERIALIZER=ON -DBUILD_BROKER=ON -DBUILD_SAMPLE_APPS=ON -DBUILD_PYTHON_MODULE=ON
           make
 
       - name: Upload build artifacts
