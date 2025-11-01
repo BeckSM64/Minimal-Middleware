@@ -68,8 +68,10 @@ set_target_properties(mmw_python PROPERTIES
 # Set the serializer
 if(CEREAL_SERIALIZER)
     add_compile_definitions(CEREAL_SERIALIZER)
+    set(SERIALIZER_SRC ${CMAKE_SOURCE_DIR}/src/serialization/CerealSerializer.cpp)
 elseif(JSON_SERIALIZER)
     add_compile_definitions(JSON_SERIALIZER)
+    set(SERIALIZER_SRC ${CMAKE_SOURCE_DIR}/src/serialization/JsonSerializer.cpp)
 else()
     message(FATAL_ERROR "You must define either CEREAL_SERIALIZER or JSON_SERIALIZER")
 endif()
@@ -83,8 +85,7 @@ add_library(
     ${CMAKE_SOURCE_DIR}/src/MMW.cpp
     ${CMAKE_SOURCE_DIR}/src/ConfigFileParser.cpp
     ${CMAKE_SOURCE_DIR}/src/serialization/SerializerAbstraction.cpp
-    ${CMAKE_SOURCE_DIR}/src/serialization/JsonSerializer.cpp
-    ${CMAKE_SOURCE_DIR}/src/serialization/CerealSerializer.cpp
+    ${SERIALIZER_SRC}
     ${CMAKE_SOURCE_DIR}/src/network/SocketAbstraction.cpp
 )
 
@@ -102,8 +103,7 @@ target_include_directories(mmw PRIVATE ${CMAKE_SOURCE_DIR}/ ${CMAKE_SOURCE_DIR}/
 add_executable(
   broker ${CMAKE_SOURCE_DIR}/broker/Broker.cpp
   ${CMAKE_SOURCE_DIR}/src/serialization/SerializerAbstraction.cpp
-  ${CMAKE_SOURCE_DIR}/src/serialization/JsonSerializer.cpp
-  ${CMAKE_SOURCE_DIR}/src/serialization/CerealSerializer.cpp
+  ${SERIALIZER_SRC}
   ${CMAKE_SOURCE_DIR}/src/network/SocketAbstraction.cpp
 )
 add_executable(publish ${CMAKE_SOURCE_DIR}/app/Publish.cpp)
