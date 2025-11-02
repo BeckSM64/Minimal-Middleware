@@ -104,9 +104,6 @@ MmwResult mmw_create_publisher(const char* topic) {
     return MMW_OK;
 }
 
-/**
- * Create a subscriber
- */
 MmwResult mmw_create_subscriber(const char* topic, void (*mmw_callback)(const char*)) {
 
     SocketAbstraction::SocketStartup();
@@ -137,46 +134,53 @@ MmwResult mmw_create_subscriber(const char* topic, void (*mmw_callback)(const ch
 
     auto runningFlag = new std::atomic<bool>(true);
     std::thread t([sock_fd, runningFlag, mmw_callback]() {
+        constexpr int HEARTBEAT_INTERVAL_MS = 1000;
+        auto lastHeartbeatTime = std::chrono::steady_clock::now();
+
         while (*runningFlag) {
+
+            // This part of the thread checks for incoming messages from the broker
             uint32_t netLen;
-            int n = SocketAbstraction::Recv(sock_fd, &netLen, sizeof(netLen), MSG_WAITALL);
-            if (n <= 0) {
-                break;
-            }
+            int n = SocketAbstraction::Recv(sock_fd, &netLen, sizeof(netLen), MSG_DONTWAIT);
+            if (n > 0) {
+                uint32_t msgLen = ntohl(netLen);
+                if (msgLen > 0) {
+                    std::vector<char> buf(msgLen);
+                    n = SocketAbstraction::Recv(sock_fd, (uint32_t*)buf.data(), msgLen, MSG_WAITALL);
+                    if (n > 0) {
+                        try {
+                            MmwMessage msg = g_serializer->deserialize(std::string(buf.data(), msgLen));
+                            if (msg.type == "publish") {
+                                mmw_callback(msg.payload.c_str());
 
-            uint32_t msgLen = ntohl(netLen);
-            if (msgLen == 0) {
-                continue;
-            }
-
-            std::vector<char> buf(msgLen);
-            n = SocketAbstraction::Recv(sock_fd, (uint32_t*) buf.data(), msgLen, MSG_WAITALL);
-            if (n <= 0) {
-                break;
-            }
-
-            try {
-                MmwMessage msg = g_serializer->deserialize(std::string(buf.data(), msgLen));
-                if (msg.type == "publish") {
-                    mmw_callback(msg.payload.c_str());
-
-                    // Only send ack back if reliability was set for incoming message
-                    if (msg.reliability) {
-
-                        // Send ACK back
-                        MmwMessage ackMsg;
-                        ackMsg.messageId = msg.messageId;
-                        ackMsg.type = "ack";
-                        ackMsg.topic = msg.topic;
-
-                        // TODO: REMOVE THIS RANDOM MESSAGE DROPPING THIS IS FOR TESTING
-                        sendMessage(sock_fd, g_serializer->serialize(ackMsg));
-                        spdlog::info("ACK sent for {}", ackMsg.messageId);
+                                if (msg.reliability) {
+                                    MmwMessage ackMsg;
+                                    ackMsg.messageId = msg.messageId;
+                                    ackMsg.type = "ack";
+                                    ackMsg.topic = msg.topic;
+                                    sendMessage(sock_fd, g_serializer->serialize(ackMsg));
+                                    spdlog::info("ACK sent for {}", ackMsg.messageId);
+                                }
+                            }
+                        } catch (const std::exception& e) {
+                            spdlog::error("Subscriber failed to deserialize: {}", e.what());
+                        }
                     }
                 }
-            } catch (const std::exception& e) {
-                spdlog::error("Subscriber failed to deserialize: {}", e.what());
             }
+
+            // This sends a heartbeat every sepcified amount of time, currently 1 second
+            auto now = std::chrono::steady_clock::now();
+            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastHeartbeatTime);
+            if (elapsed.count() >= HEARTBEAT_INTERVAL_MS) {
+                MmwMessage hbMsg;
+                hbMsg.type = "heartbeat";
+                sendMessage(sock_fd, g_serializer->serialize(hbMsg));
+                lastHeartbeatTime = now;
+            }
+
+            // Small sleep to prevent busy loop
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
 
         close(sock_fd);

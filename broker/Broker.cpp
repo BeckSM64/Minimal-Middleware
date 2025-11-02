@@ -21,6 +21,7 @@ struct ConnectedClient {
     int socket_fd;
     std::string type; // "publisher" or "subscriber"
     std::string topic;
+    std::chrono::steady_clock::time_point lastHeartbeat;
 };
 
 struct PendingAck {
@@ -151,11 +152,11 @@ void handleClient(int client_fd) {
             MmwMessage msg = g_serializer->deserialize(std::string(buf.data(), msgLen));
 
             if (msg.type == "register") {
-                ConnectedClient newClient{client_fd, msg.payload, msg.topic};
+                auto now = std::chrono::steady_clock::now();
+                ConnectedClient newClient{client_fd, msg.payload, msg.topic, std::chrono::steady_clock::now()};
                 std::lock_guard<std::mutex> lock(clientListMutex);
                 connectedClientList.push_back(newClient);
                 spdlog::info("Registered {} for topic {} (fd={})", msg.payload, msg.topic, client_fd);
-
             } else if (msg.type == "unregister") {
                 std::lock_guard<std::mutex> lock(clientListMutex);
                 connectedClientList.erase(
@@ -182,6 +183,15 @@ void handleClient(int client_fd) {
                     subIt->second.erase(msg.messageId);
                 }
                 spdlog::info("Received ACK for message {} from subscriber fd={}", msg.messageId, client_fd);
+            } else if (msg.type == "heartbeat") {
+                std::lock_guard<std::mutex> lock(clientListMutex);
+                for (auto& client : connectedClientList) {
+                    if (client.socket_fd == client_fd) {
+                        client.lastHeartbeat = std::chrono::steady_clock::now();
+                        break;
+                    }
+                }
+                spdlog::info("Received heartbeat for message  subscriber fd={}", client_fd);
             }
 
         } catch (const std::exception& e) {
@@ -215,59 +225,63 @@ int main() {
     SocketAbstraction::SocketStartup();
 
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_fd == -1) {
-        perror("socket");
-        return 1;
-    }
+    if (server_fd == -1) { perror("socket"); return 1; }
 
     int opt = 1;
-    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, (const char*) &opt, sizeof(opt));
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, (const char*)&opt, sizeof(opt));
 
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(PORT);
 
-    if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) < 0) {
-        perror("bind");
-        return 1;
-    }
-    if (listen(server_fd, 16) < 0) {
-        perror("listen");
-        return 1;
-    }
+    if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) < 0) { perror("bind"); return 1; }
+    if (listen(server_fd, 16) < 0) { perror("listen"); return 1; }
 
     spdlog::info("Broker listening on port {}", PORT);
+
+    // --- Start heartbeat monitoring thread ---
+    std::thread heartbeatMonitor([]() {
+        constexpr int TIMEOUT_MS = 6000; // 6 seconds timeout
+        while (running) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            auto now = std::chrono::steady_clock::now();
+            std::lock_guard<std::mutex> lock(clientListMutex);
+            for (auto it = connectedClientList.begin(); it != connectedClientList.end();) {
+                if (it->type == "subscriber" &&
+                    std::chrono::duration_cast<std::chrono::milliseconds>(now - it->lastHeartbeat).count() > TIMEOUT_MS) {
+                    spdlog::warn("Subscriber fd={} timed out, removing", it->socket_fd);
+                    close(it->socket_fd);
+                    it = connectedClientList.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+        }
+    });
 
     // Start resend thread for unacked messages
     constexpr int MAX_RETRIES = 3;
     std::thread resendThread([]() {
         while (running) {
-
-            // TODO: This works, but look into maybe waking the thread whenever this needs to run
-            // instead of a fixed sleep for retries. This guarentees delay in messages, maybe not ideal.
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             auto now = std::chrono::steady_clock::now();
-
             std::vector<int> fdsToRemove;
 
             {
                 std::lock_guard<std::mutex> lock(ackMutex);
-
                 for (auto& clientPair : unackedMessages) {
                     int fd = clientPair.first;
                     auto& msgMap = clientPair.second;
 
-                    for (auto it = msgMap.begin(); it != msgMap.end(); ) {
+                    for (auto it = msgMap.begin(); it != msgMap.end();) {
                         auto& pending = it->second;
                         auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - pending.timestamp);
 
                         if (elapsed.count() > 2) { // retry delay
                             if (pending.retryCount >= MAX_RETRIES) {
                                 spdlog::error("Max retries reached for message {} to fd={}", pending.msg.messageId, fd);
-
-                                // mark fd for removal
                                 fdsToRemove.push_back(fd);
-                                break; // stop retrying messages for this subscriber
+                                break;
                             } else {
                                 spdlog::warn("Resending message {} to fd={}", pending.msg.messageId, fd);
                                 sendMessage(fd, g_serializer->serialize(pending.msg));
@@ -281,7 +295,6 @@ int main() {
                     }
                 }
 
-                // Safely remove subscribers that reached max retries
                 for (int fd : fdsToRemove) {
                     unackedMessages.erase(fd);
                     close(fd);
@@ -289,25 +302,22 @@ int main() {
                 }
             }
         }
-
     });
 
+    // --- Accept loop ---
     while (running) {
         struct sockaddr_in client_addr;
         socklen_t client_len = sizeof(client_addr);
         int client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &client_len);
         if (client_fd < 0) {
-            if (!running) {
-                break;
-            }
-            if (errno == EINTR) {
-                continue;
-            }
+            if (!running) break;
+            if (errno == EINTR) continue;
             perror("accept");
             continue;
         }
 
-        spdlog::info("Client connected from {}:{} (fd={})", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port), client_fd);
+        spdlog::info("Client connected from {}:{} (fd={})", inet_ntoa(client_addr.sin_addr),
+                     ntohs(client_addr.sin_port), client_fd);
 
         {
             std::lock_guard<std::mutex> lt(threadListMutex);
@@ -315,35 +325,31 @@ int main() {
         }
     }
 
+    // Join all threads
+    heartbeatMonitor.join();
+
     {
         std::lock_guard<std::mutex> lt(threadListMutex);
-        for (auto &t : clientThreads) {
-            if (t.joinable()) {
-                t.join();
-            }
+        for (auto& t : clientThreads) {
+            if (t.joinable()) t.join();
         }
         clientThreads.clear();
     }
 
-    // Join resend thread
     resendThread.join();
 
+    // Cleanup remaining clients
     {
         std::lock_guard<std::mutex> lock(clientListMutex);
-        for (auto &c : connectedClientList) {
-            if (c.socket_fd != -1) {
-                close(c.socket_fd);
-            }
+        for (auto& c : connectedClientList) {
+            if (c.socket_fd != -1) close(c.socket_fd);
         }
         connectedClientList.clear();
     }
 
-    if (server_fd != -1) {
-        close(server_fd); server_fd = -1;
-    }
+    if (server_fd != -1) { close(server_fd); server_fd = -1; }
     spdlog::info("Broker exited cleanly");
 
     SocketAbstraction::SocketCleanup();
-
     return 0;
 }
