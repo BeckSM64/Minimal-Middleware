@@ -10,7 +10,6 @@
 #include <fcntl.h>
 
 #include "MMW.h"
-#include "ConfigFileParser.h"
 #include "IMmwMessageSerializer.h"
 #include "SerializerAbstraction.h"
 #include "SocketAbstraction.h"

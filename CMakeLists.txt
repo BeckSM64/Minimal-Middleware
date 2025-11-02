@@ -10,16 +10,8 @@ option(BUILD_BROKER "Build broker executable" OFF)
 option(BUILD_SAMPLE_APPS "Build sample apps (publish/subscribe etc.)" OFF)
 option(BUILD_PYTHON_MODULE "Build Python bindings" OFF)
 
-# Get YAML CPP Library
-include(FetchContent)
-FetchContent_Declare(
-  yaml-cpp
-  GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
-  GIT_TAG 0.8.0
-)
-FetchContent_MakeAvailable(yaml-cpp)
-
 # Get JSON library
+include(FetchContent)
 FetchContent_Declare(
   json
   GIT_REPOSITORY https://github.com/nlohmann/json.git
@@ -75,7 +67,6 @@ option(BUILD_SHARED_LIBS "Build as shared library" ON)
 add_library(
     mmw
     ${CMAKE_CURRENT_LIST_DIR}/src/MMW.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/src/ConfigFileParser.cpp
     ${CMAKE_CURRENT_LIST_DIR}/src/serialization/SerializerAbstraction.cpp
     ${SERIALIZER_SRC}
     ${CMAKE_CURRENT_LIST_DIR}/src/network/SocketAbstraction.cpp
@@ -93,9 +84,9 @@ target_include_directories(mmw PRIVATE ${CMAKE_CURRENT_LIST_DIR}/ ${CMAKE_CURREN
 
 # Link Libraries
 if(WIN32)
-    target_link_libraries(mmw PUBLIC yaml-cpp::yaml-cpp nlohmann_json::nlohmann_json spdlog::spdlog_header_only ws2_32)
+    target_link_libraries(mmw PUBLIC nlohmann_json::nlohmann_json spdlog::spdlog_header_only ws2_32)
 else()
-    target_link_libraries(mmw PUBLIC yaml-cpp::yaml-cpp nlohmann_json::nlohmann_json spdlog::spdlog_header_only)
+    target_link_libraries(mmw PUBLIC nlohmann_json::nlohmann_json spdlog::spdlog_header_only)
 endif()
 
 # Build broker if requested
