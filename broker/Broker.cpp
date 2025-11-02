@@ -225,7 +225,10 @@ int main() {
     SocketAbstraction::SocketStartup();
 
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_fd == -1) { perror("socket"); return 1; }
+    if (server_fd == -1) {
+        perror("socket");
+        return 1;
+    }
 
     int opt = 1;
     setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, (const char*)&opt, sizeof(opt));
@@ -234,8 +237,14 @@ int main() {
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(PORT);
 
-    if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) < 0) { perror("bind"); return 1; }
-    if (listen(server_fd, 16) < 0) { perror("listen"); return 1; }
+    if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) < 0) {
+        perror("bind");
+        return 1;
+    }
+    if (listen(server_fd, 16) < 0) {
+        perror("listen");
+        return 1;
+    }
 
     spdlog::info("Broker listening on port {}", PORT);
 
@@ -310,8 +319,12 @@ int main() {
         socklen_t client_len = sizeof(client_addr);
         int client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &client_len);
         if (client_fd < 0) {
-            if (!running) break;
-            if (errno == EINTR) continue;
+            if (!running) {
+                break;
+            }
+            if (errno == EINTR) {
+                continue;
+            }
             perror("accept");
             continue;
         }
