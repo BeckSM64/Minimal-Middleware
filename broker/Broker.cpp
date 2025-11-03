@@ -248,7 +248,7 @@ int main() {
 
     spdlog::info("Broker listening on port {}", PORT);
 
-    // --- Start heartbeat monitoring thread ---
+    // Start heartbeat monitoring thread
     std::thread heartbeatMonitor([]() {
         constexpr int TIMEOUT_MS = 6000; // 6 seconds timeout
         while (running) {
