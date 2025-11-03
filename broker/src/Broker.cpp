@@ -386,6 +386,10 @@ int main() {
     delete g_persistence;
     g_persistence = nullptr;
 
+    // Cleanup serializer
+    delete g_serializer;
+    g_serializer = nullptr;
+
     SocketAbstraction::SocketCleanup();
     spdlog::info("Broker exited cleanly");
 
