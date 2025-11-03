@@ -61,7 +61,7 @@ inline bool sendMessage(int sock_fd, const std::string& data) {
     return true;
 }
 
-// --- helper: safely route message to subscribers ---
+// Helper function to route messages to subscribers
 void routeMessageToSubscribers(const std::string& topic, const MmwMessage& msg) {
     if (topic.empty()) {
         return;
