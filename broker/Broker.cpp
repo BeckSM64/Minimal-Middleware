@@ -313,7 +313,7 @@ int main() {
         }
     });
 
-    // --- Accept loop ---
+    // Accept loop
     while (running) {
         struct sockaddr_in client_addr;
         socklen_t client_len = sizeof(client_addr);
@@ -344,7 +344,9 @@ int main() {
     {
         std::lock_guard<std::mutex> lt(threadListMutex);
         for (auto& t : clientThreads) {
-            if (t.joinable()) t.join();
+            if (t.joinable()) {
+                t.join();
+            }
         }
         clientThreads.clear();
     }
@@ -355,12 +357,17 @@ int main() {
     {
         std::lock_guard<std::mutex> lock(clientListMutex);
         for (auto& c : connectedClientList) {
-            if (c.socket_fd != -1) close(c.socket_fd);
+            if (c.socket_fd != -1) {
+                close(c.socket_fd);
+            }
         }
         connectedClientList.clear();
     }
 
-    if (server_fd != -1) { close(server_fd); server_fd = -1; }
+    if (server_fd != -1) {
+        close(server_fd);
+        server_fd = -1;
+    }
     spdlog::info("Broker exited cleanly");
 
     SocketAbstraction::SocketCleanup();
