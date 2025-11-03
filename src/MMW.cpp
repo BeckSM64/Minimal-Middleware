@@ -120,48 +120,64 @@ MmwResult mmw_create_publisher(const char* topic) {
 
 typedef std::function<void(const MmwMessage&)> SubscriberCallback;
 void subscriberThreadFunc(int sock_fd, std::atomic<bool>* runningFlag, SubscriberCallback callback) {
-    constexpr int HEARTBEAT_INTERVAL_MS = 1000;
-    auto lastHeartbeatTime = std::chrono::steady_clock::now();
-
     while (*runningFlag) {
         uint32_t netLen;
-        int n = SocketAbstraction::Recv(sock_fd, &netLen, sizeof(netLen), MSG_DONTWAIT);
-        if (n > 0) {
-            uint32_t msgLen = ntohl(netLen);
-            if (msgLen > 0) {
-                std::vector<char> buf(msgLen);
-                n = SocketAbstraction::Recv(sock_fd, (uint32_t*) buf.data(), msgLen, MSG_WAITALL);
-                if (n > 0) {
-                    try {
-                        MmwMessage msg = callback == nullptr
-                            ? g_serializer->deserialize(std::string(buf.data(), msgLen))
-                            : g_serializer->deserialize_raw(std::string(buf.data(), msgLen));
-
-                        if (msg.type == "publish") {
-                            callback(msg);
-
-                            if (msg.reliability) {
-                                MmwMessage ackMsg;
-                                ackMsg.messageId = msg.messageId;
-                                ackMsg.type = "ack";
-                                ackMsg.topic = msg.topic;
-                                sendMessage(sock_fd, g_serializer->serialize(ackMsg));
-                                spdlog::info("ACK sent for {}", ackMsg.messageId);
-                            }
-                        }
-                    } catch (const std::exception& e) {
-                        spdlog::error("Subscriber failed to deserialize: {}", e.what());
-                    }
-                }
-            }
+        int n = SocketAbstraction::Recv(sock_fd, &netLen, sizeof(netLen), MSG_WAITALL);
+        if (n <= 0) {
+            break; // Connection closed or error
         }
 
-        sendHeartbeat(sock_fd, lastHeartbeatTime, HEARTBEAT_INTERVAL_MS);
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        uint32_t msgLen = ntohl(netLen);
+        if (msgLen == 0) {
+            continue;
+        }
+
+        std::vector<char> buf(msgLen);
+        n = SocketAbstraction::Recv(sock_fd, (uint32_t*)buf.data(), msgLen, MSG_WAITALL);
+        if (n <= 0) {
+            break;
+        }
+
+        try {
+            MmwMessage msg = callback == nullptr
+                ? g_serializer->deserialize(std::string(buf.data(), msgLen))
+                : g_serializer->deserialize_raw(std::string(buf.data(), msgLen));
+
+            if (msg.type == "publish") {
+                callback(msg);
+
+                if (msg.reliability) {
+                    MmwMessage ackMsg;
+                    ackMsg.messageId = msg.messageId;
+                    ackMsg.type = "ack";
+                    ackMsg.topic = msg.topic;
+                    sendMessage(sock_fd, g_serializer->serialize(ackMsg));
+                    spdlog::info("ACK sent for {}", ackMsg.messageId);
+                }
+            }
+        } catch (const std::exception& e) {
+            spdlog::error("Subscriber failed to deserialize: {}", e.what());
+        }
     }
 
     close(sock_fd);
     spdlog::info("Subscriber listener thread exiting");
+}
+
+// Heartbeat thread
+void heartbeatThreadFunc(int sock_fd, std::atomic<bool>* runningFlag, int intervalMs) {
+    auto lastHeartbeatTime = std::chrono::steady_clock::now();
+    while (*runningFlag) {
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastHeartbeatTime);
+        if (elapsed.count() >= intervalMs) {
+            MmwMessage hbMsg;
+            hbMsg.type = "heartbeat";
+            sendMessage(sock_fd, g_serializer->serialize(hbMsg));
+            lastHeartbeatTime = now;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
 }
 
 MmwResult createSubscriberInternal(
@@ -191,9 +207,15 @@ MmwResult createSubscriberInternal(
     }
 
     auto runningFlag = new std::atomic<bool>(true);
-    std::thread t(subscriberThreadFunc, sock_fd, runningFlag, callback);
 
+    // Start subscriber receive thread
+    std::thread t(subscriberThreadFunc, sock_fd, runningFlag, callback);
     subscriberThreads.push_back(std::move(t));
+
+    // Start heartbeat thread
+    std::thread hbThread(heartbeatThreadFunc, sock_fd, runningFlag, 1000);
+    subscriberThreads.push_back(std::move(hbThread));
+
     subscriberRunFlags.push_back(runningFlag);
     return MMW_OK;
 }
