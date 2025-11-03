@@ -47,6 +47,8 @@ int SocketAbstraction::SocketCleanup() {
 #endif
 }
 
+// TODO: Casting to uint32_t* for the buffer could be problematic if not divibisble
+// by 4. Look into doing this in a way that is safe for windows and linux
 int SocketAbstraction::Send(int s, uint32_t* buf, int32_t len, int32_t flags) {
     return send(s, (const char*) buf, len, flags);
 }
