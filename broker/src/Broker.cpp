@@ -14,6 +14,7 @@
 #include "IMmwMessageSerializer.h"
 #include "SerializerAbstraction.h"
 #include "SocketAbstraction.h"
+#include "BrokerPersistence.h"
 
 #define PORT 5000
 
@@ -45,6 +46,8 @@ static std::mutex ackMutex;
 static std::unordered_map<int, std::unordered_map<uint32_t, PendingAck>> unackedMessages;
 
 static std::atomic<uint32_t> brokerMessageId{1}; // start at 1
+
+static BrokerPersistence g_persistence("broker_data.db");
 
 // Send a length-prefixed message
 inline bool sendMessage(int sock_fd, const std::string& data) {
@@ -174,6 +177,12 @@ void handleClient(int client_fd) {
                 // Assign a unique messageId
                 // TODO: This could eventually reach a limit
                 msg.messageId = brokerMessageId++;
+
+                // Write message to sqlite database for persistence
+                if (!g_persistence.persistMessage(msg)) {
+                    spdlog::warn("Failed to persist message {}", msg.messageId);
+                }
+
                 routeMessageToSubscribers(msg.topic, msg);
 
             } else if (msg.type == "ack") {
