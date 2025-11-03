@@ -44,20 +44,6 @@ inline bool sendMessage(int sock_fd, const std::string& data) {
 }
 
 /**
- * Helper function to send subscriber heartbeat
- */
-static void sendHeartbeat(int sock_fd, std::chrono::steady_clock::time_point& lastHeartbeatTime, int intervalMs) {
-    auto now = std::chrono::steady_clock::now();
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastHeartbeatTime);
-    if (elapsed.count() >= intervalMs) {
-        MmwMessage hbMsg;
-        hbMsg.type = "heartbeat";
-        sendMessage(sock_fd, g_serializer->serialize(hbMsg));
-        lastHeartbeatTime = now;
-    }
-}
-
-/**
  * Initialize library settings
  */
 MmwResult mmw_initialize(const char* brokerIp, unsigned short port) {
