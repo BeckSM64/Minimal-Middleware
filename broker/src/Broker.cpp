@@ -47,7 +47,7 @@ static std::unordered_map<int, std::unordered_map<uint32_t, PendingAck>> unacked
 
 static std::atomic<uint32_t> brokerMessageId{1}; // start at 1
 
-static BrokerPersistence g_persistence("broker_data.db");
+static BrokerPersistence* g_persistence = nullptr;
 
 // Send a length-prefixed message
 inline bool sendMessage(int sock_fd, const std::string& data) {
@@ -179,7 +179,7 @@ void handleClient(int client_fd) {
                 msg.messageId = brokerMessageId++;
 
                 // Write message to sqlite database for persistence
-                if (!g_persistence.persistMessage(msg)) {
+                if (!g_persistence->persistMessage(msg)) {
                     spdlog::warn("Failed to persist message {}", msg.messageId);
                 }
 
@@ -227,6 +227,10 @@ int main() {
     signal(SIGTERM, handleSignal);
 
     g_serializer = CreateSerializer();
+    g_persistence = new BrokerPersistence("broker_data.db");
+
+    // Initialize brokerMessageId based on existing messages in DB
+    brokerMessageId = g_persistence->getNextMessageId();
 
     struct sockaddr_in address;
     socklen_t addrlen = sizeof(address);
@@ -377,8 +381,13 @@ int main() {
         close(server_fd);
         server_fd = -1;
     }
-    spdlog::info("Broker exited cleanly");
+
+    // Cleanup broker persistence
+    delete g_persistence;
+    g_persistence = nullptr;
 
     SocketAbstraction::SocketCleanup();
+    spdlog::info("Broker exited cleanly");
+
     return 0;
 }

@@ -11,6 +11,7 @@ public:
 
     // Persist a message. Returns true on success.
     bool persistMessage(const MmwMessage& msg);
+    uint32_t getNextMessageId();
 
 private:
     bool prepareDatabase();

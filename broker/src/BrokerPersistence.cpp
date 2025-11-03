@@ -69,3 +69,18 @@ bool BrokerPersistence::persistMessage(const MmwMessage& msg) {
     sqlite3_finalize(stmt);
     return true;
 }
+
+uint32_t BrokerPersistence::getNextMessageId() {
+    sqlite3_stmt* stmt = nullptr;
+    const char* sql = "SELECT MAX(messageId) FROM messages;";
+    uint32_t nextId = 1;
+
+    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) == SQLITE_OK) {
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+            int maxId = sqlite3_column_int(stmt, 0);
+            nextId = maxId + 1;
+        }
+    }
+    sqlite3_finalize(stmt);
+    return nextId;
+}
