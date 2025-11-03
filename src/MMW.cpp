@@ -225,6 +225,9 @@ MmwResult mmw_create_subscriber_raw(const char* topic, void (*mmw_callback)(void
 
     auto runningFlag = new std::atomic<bool>(true);
     std::thread t([sock_fd, runningFlag, mmw_callback]() {
+        constexpr int HEARTBEAT_INTERVAL_MS = 1000;
+        auto lastHeartbeatTime = std::chrono::steady_clock::now();
+
         while (*runningFlag) {
             uint32_t netLen;
             int n = SocketAbstraction::Recv(sock_fd, (uint32_t*) &netLen, sizeof(netLen), MSG_WAITALL);
@@ -264,6 +267,19 @@ MmwResult mmw_create_subscriber_raw(const char* topic, void (*mmw_callback)(void
             } catch (const std::exception& e) {
                 spdlog::error("Subscriber failed to deserialize: {}", e.what());
             }
+
+            // This sends a heartbeat every sepcified amount of time, currently 1 second
+            auto now = std::chrono::steady_clock::now();
+            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastHeartbeatTime);
+            if (elapsed.count() >= HEARTBEAT_INTERVAL_MS) {
+                MmwMessage hbMsg;
+                hbMsg.type = "heartbeat";
+                sendMessage(sock_fd, g_serializer->serialize(hbMsg));
+                lastHeartbeatTime = now;
+            }
+
+            // Small sleep to prevent busy loop
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
 
         close(sock_fd);
