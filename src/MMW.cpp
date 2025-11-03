@@ -224,14 +224,18 @@ MmwResult createSubscriberInternal(
  * Create subscriber
  */
 MmwResult mmw_create_subscriber(const char* topic, void (*cb)(const char*)) {
-    return createSubscriberInternal(topic, [cb](const MmwMessage& msg) { cb(msg.payload.c_str()); });
+    return createSubscriberInternal(topic, [cb](const MmwMessage& msg) {
+        cb(msg.payload.c_str());
+    });
 }
 
 /**
  * Create subscriber for raw payload
  */
 MmwResult mmw_create_subscriber_raw(const char* topic, void (*cb)(void*)) {
-    return createSubscriberInternal(topic, [cb](const MmwMessage& msg) { cb(msg.payload_raw); });
+    return createSubscriberInternal(topic, [cb](const MmwMessage& msg) {
+        cb(msg.payload_raw);
+    });
 }
 
 /**
