@@ -104,18 +104,76 @@ MmwResult mmw_create_publisher(const char* topic) {
     return MMW_OK;
 }
 
-/**
- * Create a subscriber
- */
-MmwResult mmw_create_subscriber(const char* topic, void (*mmw_callback)(const char*)) {
+typedef std::function<void(const MmwMessage&)> SubscriberCallback;
+void subscriberThreadFunc(int sock_fd, std::atomic<bool>* runningFlag, SubscriberCallback callback) {
+    while (*runningFlag) {
+        uint32_t netLen;
+        int n = SocketAbstraction::Recv(sock_fd, &netLen, sizeof(netLen), MSG_WAITALL);
+        if (n <= 0) {
+            break; // Connection closed or error
+        }
 
+        uint32_t msgLen = ntohl(netLen);
+        if (msgLen == 0) {
+            continue;
+        }
+
+        std::vector<char> buf(msgLen);
+        n = SocketAbstraction::Recv(sock_fd, (uint32_t*)buf.data(), msgLen, MSG_WAITALL);
+        if (n <= 0) {
+            break;
+        }
+
+        try {
+            MmwMessage msg = callback == nullptr
+                ? g_serializer->deserialize(std::string(buf.data(), msgLen))
+                : g_serializer->deserialize_raw(std::string(buf.data(), msgLen));
+
+            if (msg.type == "publish") {
+                callback(msg);
+
+                if (msg.reliability) {
+                    MmwMessage ackMsg;
+                    ackMsg.messageId = msg.messageId;
+                    ackMsg.type = "ack";
+                    ackMsg.topic = msg.topic;
+                    sendMessage(sock_fd, g_serializer->serialize(ackMsg));
+                    spdlog::info("ACK sent for {}", ackMsg.messageId);
+                }
+            }
+        } catch (const std::exception& e) {
+            spdlog::error("Subscriber failed to deserialize: {}", e.what());
+        }
+    }
+
+    close(sock_fd);
+    spdlog::info("Subscriber listener thread exiting");
+}
+
+// Heartbeat thread
+void heartbeatThreadFunc(int sock_fd, std::atomic<bool>* runningFlag, int intervalMs) {
+    auto lastHeartbeatTime = std::chrono::steady_clock::now();
+    while (*runningFlag) {
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastHeartbeatTime);
+        if (elapsed.count() >= intervalMs) {
+            MmwMessage hbMsg;
+            hbMsg.type = "heartbeat";
+            sendMessage(sock_fd, g_serializer->serialize(hbMsg));
+            lastHeartbeatTime = now;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+}
+
+MmwResult createSubscriberInternal(
+    const char* topic,
+    std::function<void(const MmwMessage&)> callback
+) {
     SocketAbstraction::SocketStartup();
 
     int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock_fd == -1) {
-        perror("socket");
-        return MMW_ERROR;
-    }
+    if (sock_fd == -1) { perror("socket"); return MMW_ERROR; }
 
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(brokerPort);
@@ -127,7 +185,6 @@ MmwResult mmw_create_subscriber(const char* topic, void (*mmw_callback)(const ch
         return MMW_ERROR;
     }
 
-    // Registration message
     MmwMessage msg{0, "register", topic, "subscriber"};
     if (!sendMessage(sock_fd, g_serializer->serialize(msg))) {
         spdlog::error("Failed to send registration for subscriber: {}", topic);
@@ -136,139 +193,35 @@ MmwResult mmw_create_subscriber(const char* topic, void (*mmw_callback)(const ch
     }
 
     auto runningFlag = new std::atomic<bool>(true);
-    std::thread t([sock_fd, runningFlag, mmw_callback]() {
-        while (*runningFlag) {
-            uint32_t netLen;
-            int n = SocketAbstraction::Recv(sock_fd, &netLen, sizeof(netLen), MSG_WAITALL);
-            if (n <= 0) {
-                break;
-            }
 
-            uint32_t msgLen = ntohl(netLen);
-            if (msgLen == 0) {
-                continue;
-            }
-
-            std::vector<char> buf(msgLen);
-            n = SocketAbstraction::Recv(sock_fd, (uint32_t*) buf.data(), msgLen, MSG_WAITALL);
-            if (n <= 0) {
-                break;
-            }
-
-            try {
-                MmwMessage msg = g_serializer->deserialize(std::string(buf.data(), msgLen));
-                if (msg.type == "publish") {
-                    mmw_callback(msg.payload.c_str());
-
-                    // Only send ack back if reliability was set for incoming message
-                    if (msg.reliability) {
-
-                        // Send ACK back
-                        MmwMessage ackMsg;
-                        ackMsg.messageId = msg.messageId;
-                        ackMsg.type = "ack";
-                        ackMsg.topic = msg.topic;
-
-                        // TODO: REMOVE THIS RANDOM MESSAGE DROPPING THIS IS FOR TESTING
-                        sendMessage(sock_fd, g_serializer->serialize(ackMsg));
-                        spdlog::info("ACK sent for {}", ackMsg.messageId);
-                    }
-                }
-            } catch (const std::exception& e) {
-                spdlog::error("Subscriber failed to deserialize: {}", e.what());
-            }
-        }
-
-        close(sock_fd);
-        spdlog::info("Subscriber listener thread exiting");
-    });
-
+    // Start subscriber receive thread
+    std::thread t(subscriberThreadFunc, sock_fd, runningFlag, callback);
     subscriberThreads.push_back(std::move(t));
+
+    // Start heartbeat thread
+    std::thread hbThread(heartbeatThreadFunc, sock_fd, runningFlag, 1000);
+    subscriberThreads.push_back(std::move(hbThread));
+
     subscriberRunFlags.push_back(runningFlag);
     return MMW_OK;
 }
 
 /**
- * Create a subscriber
+ * Create subscriber
  */
-MmwResult mmw_create_subscriber_raw(const char* topic, void (*mmw_callback)(void*)) {
-
-    SocketAbstraction::SocketStartup();
-
-    int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock_fd == -1) {
-        perror("socket");
-        return MMW_ERROR;
-    }
-
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(brokerPort);
-    SocketAbstraction::InetPtonAbstraction(AF_INET, hostname.c_str(), &server_addr.sin_addr);
-
-    if (connect(sock_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
-        perror("connect");
-        close(sock_fd);
-        return MMW_ERROR;
-    }
-
-    // Registration message
-    MmwMessage msg{0, "register", topic, "subscriber"};
-    if (!sendMessage(sock_fd, g_serializer->serialize(msg))) {
-        spdlog::error("Failed to send registration for subscriber: {}", topic);
-        close(sock_fd);
-        return MMW_ERROR;
-    }
-
-    auto runningFlag = new std::atomic<bool>(true);
-    std::thread t([sock_fd, runningFlag, mmw_callback]() {
-        while (*runningFlag) {
-            uint32_t netLen;
-            int n = SocketAbstraction::Recv(sock_fd, (uint32_t*) &netLen, sizeof(netLen), MSG_WAITALL);
-            if (n <= 0) {
-                break;
-            }
-
-            uint32_t msgLen = ntohl(netLen);
-            if (msgLen == 0) {
-                continue;
-            }
-
-            std::vector<char> buf(msgLen);
-            n = SocketAbstraction::Recv(sock_fd, (uint32_t*) buf.data(), msgLen, MSG_WAITALL);
-            if (n <= 0) {
-                break;
-            }
-
-            try {
-                MmwMessage msg = g_serializer->deserialize_raw(std::string(buf.data(), msgLen));
-                if (msg.type == "publish") {
-                    mmw_callback(msg.payload_raw);
-
-                    // Only send ack back if reliability was set for incoming message
-                    if (msg.reliability) {
-
-                        // Send ACK back
-                        MmwMessage ackMsg;
-                        ackMsg.messageId = msg.messageId;
-                        ackMsg.type = "ack";
-                        ackMsg.topic = msg.topic;
-
-                        sendMessage(sock_fd, g_serializer->serialize(ackMsg));
-                        spdlog::info("ACK sent for {}", ackMsg.messageId);
-                    }
-                }
-            } catch (const std::exception& e) {
-                spdlog::error("Subscriber failed to deserialize: {}", e.what());
-            }
-        }
-
-        close(sock_fd);
-        spdlog::info("Subscriber listener thread exiting");
+MmwResult mmw_create_subscriber(const char* topic, void (*cb)(const char*)) {
+    return createSubscriberInternal(topic, [cb](const MmwMessage& msg) {
+        cb(msg.payload.c_str());
     });
+}
 
-    subscriberThreads.push_back(std::move(t));
-    subscriberRunFlags.push_back(runningFlag);
-    return MMW_OK;
+/**
+ * Create subscriber for raw payload
+ */
+MmwResult mmw_create_subscriber_raw(const char* topic, void (*cb)(void*)) {
+    return createSubscriberInternal(topic, [cb](const MmwMessage& msg) {
+        cb(msg.payload_raw);
+    });
 }
 
 /**
