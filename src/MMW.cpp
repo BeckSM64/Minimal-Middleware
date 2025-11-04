@@ -73,7 +73,10 @@ MmwResult mmw_create_publisher(const char* topic) {
     SocketAbstraction::SocketStartup();
 
     int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock_fd == -1) { perror("socket"); return MMW_ERROR; }
+    if (sock_fd == -1) {
+        perror("socket");
+        return MMW_ERROR;
+    }
 
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(brokerPort);
