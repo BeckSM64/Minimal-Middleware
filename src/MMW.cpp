@@ -70,14 +70,10 @@ MmwResult mmw_initialize(const char* brokerIp, unsigned short port) {
  * Create a publisher
  */
 MmwResult mmw_create_publisher(const char* topic) {
-
     SocketAbstraction::SocketStartup();
 
     int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock_fd == -1) {
-        perror("socket");
-        return MMW_ERROR;
-    }
+    if (sock_fd == -1) { perror("socket"); return MMW_ERROR; }
 
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(brokerPort);
@@ -91,9 +87,14 @@ MmwResult mmw_create_publisher(const char* topic) {
 
     // Registration message
     MmwMessage msg{0, "register", topic, "publisher"};
-
-    if (sendMessage(sock_fd, g_serializer->serialize(msg)) == MMW_ERROR) {
-        spdlog::error("Failed to send registration for publisher: {}", topic);
+    try {
+        if (sendMessage(sock_fd, g_serializer->serialize(msg)) == MMW_ERROR) {
+            spdlog::error("Failed to send registration for publisher: {}", topic);
+            close(sock_fd);
+            return MMW_ERROR;
+        }
+    } catch (const std::exception& e) {
+        spdlog::error("Publisher serialization failed for {}: {}", topic, e.what());
         close(sock_fd);
         return MMW_ERROR;
     }
@@ -174,10 +175,7 @@ void heartbeatThreadFunc(int sock_fd, std::atomic<bool>* runningFlag, int interv
     }
 }
 
-MmwResult createSubscriberInternal(
-    const char* topic,
-    std::function<void(const MmwMessage&)> callback
-) {
+MmwResult createSubscriberInternal(const char* topic, std::function<void(const MmwMessage&)> callback) {
     SocketAbstraction::SocketStartup();
 
     int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -188,25 +186,27 @@ MmwResult createSubscriberInternal(
     SocketAbstraction::InetPtonAbstraction(AF_INET, hostname.c_str(), &server_addr.sin_addr);
 
     if (connect(sock_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
-        perror("connect");
-        close(sock_fd);
-        return MMW_ERROR;
+        perror("connect"); close(sock_fd); return MMW_ERROR;
     }
 
     MmwMessage msg{0, "register", topic, "subscriber"};
-    if (sendMessage(sock_fd, g_serializer->serialize(msg)) == MMW_ERROR) {
-        spdlog::error("Failed to send registration for subscriber: {}", topic);
+    try {
+        if (sendMessage(sock_fd, g_serializer->serialize(msg)) == MMW_ERROR) {
+            spdlog::error("Failed to send registration for subscriber: {}", topic);
+            close(sock_fd);
+            return MMW_ERROR;
+        }
+    } catch (const std::exception& e) {
+        spdlog::error("Subscriber serialization failed for {}: {}", topic, e.what());
         close(sock_fd);
         return MMW_ERROR;
     }
 
     auto runningFlag = new std::atomic<bool>(true);
 
-    // Start subscriber receive thread
     std::thread t(subscriberThreadFunc, sock_fd, runningFlag, callback);
     subscriberThreads.push_back(std::move(t));
 
-    // Start heartbeat thread
     std::thread hbThread(heartbeatThreadFunc, sock_fd, runningFlag, 1000);
     subscriberThreads.push_back(std::move(hbThread));
 
@@ -232,9 +232,6 @@ MmwResult mmw_create_subscriber_raw(const char* topic, void (*cb)(void*)) {
     });
 }
 
-/**
- * Publish a message
- */
 MmwResult mmw_publish(const char* topic, const char* payload, MmwReliability reliability) {
     auto it = publisherTopicToSocketFdMap.find(topic);
     if (it == publisherTopicToSocketFdMap.end()) {
@@ -244,16 +241,20 @@ MmwResult mmw_publish(const char* topic, const char* payload, MmwReliability rel
     int sock_fd = it->second;
     MmwMessage msg{0, "publish", topic, payload};
     msg.reliability = reliability;
-    if (sendMessage(sock_fd, g_serializer->serialize(msg)) == MMW_ERROR) {
-        spdlog::error("Failed to send message on topic {}", topic);
+
+    try {
+        if (sendMessage(sock_fd, g_serializer->serialize(msg)) == MMW_ERROR) {
+            spdlog::error("Failed to send message on topic {}", topic);
+            return MMW_ERROR;
+        }
+    } catch (const std::exception& e) {
+        spdlog::error("Publish serialization failed on topic {}: {}", topic, e.what());
         return MMW_ERROR;
     }
+
     return MMW_OK;
 }
 
-/**
- * Publish a message of raw bytes
- */
 MmwResult mmw_publish_raw(const char* topic, void* payload, size_t size, MmwReliability reliability) {
     auto it = publisherTopicToSocketFdMap.find(topic);
     if (it == publisherTopicToSocketFdMap.end()) {
@@ -263,10 +264,17 @@ MmwResult mmw_publish_raw(const char* topic, void* payload, size_t size, MmwReli
     int sock_fd = it->second;
     MmwMessage msg{0, "publish", topic, "", payload, size};
     msg.reliability = reliability;
-    if (sendMessage(sock_fd, g_serializer->serialize_raw(msg)) == MMW_ERROR) {
-        spdlog::error("Failed to send message on topic {}", topic);
+
+    try {
+        if (sendMessage(sock_fd, g_serializer->serialize_raw(msg)) == MMW_ERROR) {
+            spdlog::error("Failed to send message on topic {}", topic);
+            return MMW_ERROR;
+        }
+    } catch (const std::exception& e) {
+        spdlog::error("Raw publish serialization failed on topic {}: {}", topic, e.what());
         return MMW_ERROR;
     }
+
     return MMW_OK;
 }
 
