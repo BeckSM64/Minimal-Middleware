@@ -37,7 +37,7 @@ inline bool sendMessage(int sock_fd, const std::string& data) {
     if (SocketAbstraction::Send(sock_fd, &len, sizeof(len), 0) != sizeof(len)) {
         return false;
     }
-    if (SocketAbstraction::Send(sock_fd, (uint32_t*) data.data(), data.size(), 0) != (ssize_t)data.size()) {
+    if (SocketAbstraction::Send(sock_fd, data.data(), data.size(), 0) != (ssize_t)data.size()) {
         return false;
     }
     return true;
@@ -119,7 +119,7 @@ void subscriberThreadFunc(int sock_fd, std::atomic<bool>* runningFlag, Subscribe
         }
 
         std::vector<char> buf(msgLen);
-        n = SocketAbstraction::Recv(sock_fd, (uint32_t*)buf.data(), msgLen, MSG_WAITALL);
+        n = SocketAbstraction::Recv(sock_fd, buf.data(), msgLen, MSG_WAITALL);
         if (n <= 0) {
             break;
         }
