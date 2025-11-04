@@ -16,8 +16,6 @@
 #include "SocketAbstraction.h"
 #include "BrokerPersistence.h"
 
-#define PORT 5000
-
 struct ConnectedClient {
     int socket_fd;
     std::string type; // "publisher" or "subscriber"
@@ -222,7 +220,7 @@ void handleSignal(int signum) {
     }
 }
 
-int main() {
+int main(int argc, char *argv[]) {
     signal(SIGINT, handleSignal);
     signal(SIGTERM, handleSignal);
 
@@ -246,9 +244,23 @@ int main() {
     int opt = 1;
     setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, (const char*)&opt, sizeof(opt));
 
+    int port = 5000;
+    if (argc > 1) {
+        try {
+            port = std::stoi(argv[1]);
+            if (port <= 0 || port > 65535) {
+                spdlog::warn("Invalid port number '{}', using default {}", argv[1], port);
+                port = 5000;
+            }
+        } catch (const std::exception& e) {
+            spdlog::warn("Invalid port argument '{}', using default {}", argv[1], port);
+            port = 5000;
+        }
+    }
+
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
-    address.sin_port = htons(PORT);
+    address.sin_port = htons(port);
 
     if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) < 0) {
         perror("bind");
@@ -259,7 +271,7 @@ int main() {
         return 1;
     }
 
-    spdlog::info("Broker listening on port {}", PORT);
+    spdlog::info("Broker listening on port {}", port);
 
     // Start heartbeat monitoring thread
     std::thread heartbeatMonitor([]() {
