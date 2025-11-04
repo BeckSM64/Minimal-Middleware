@@ -92,16 +92,19 @@ endif()
 # Build broker if requested
 if(BUILD_BROKER)
     add_executable(
-        broker ${CMAKE_CURRENT_LIST_DIR}/broker/Broker.cpp
+        broker ${CMAKE_CURRENT_LIST_DIR}/broker/src/Broker.cpp
         ${CMAKE_CURRENT_LIST_DIR}/src/serialization/SerializerAbstraction.cpp
         ${SERIALIZER_SRC}
         ${CMAKE_CURRENT_LIST_DIR}/src/network/SocketAbstraction.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/broker/src/BrokerPersistence.cpp
     )
-    target_include_directories(broker PRIVATE ${CMAKE_CURRENT_LIST_DIR}/includes/ ${cereal_SOURCE_DIR}/include/)
+    target_include_directories(broker PRIVATE ${CMAKE_CURRENT_LIST_DIR}/broker/includes/ ${CMAKE_CURRENT_LIST_DIR}/includes/ ${cereal_SOURCE_DIR}/include/)
     if(WIN32)
-        target_link_libraries(broker nlohmann_json::nlohmann_json pthread spdlog::spdlog_header_only ws2_32)
+        find_package(unofficial-sqlite3 CONFIG REQUIRED)
+        target_link_libraries(broker nlohmann_json::nlohmann_json pthread spdlog::spdlog_header_only ws2_32 unofficial::sqlite3::sqlite3)
     else()
-        target_link_libraries(broker nlohmann_json::nlohmann_json pthread spdlog::spdlog_header_only)
+        find_package(SQLite3 REQUIRED)
+        target_link_libraries(broker nlohmann_json::nlohmann_json pthread spdlog::spdlog_header_only SQLite::SQLite3)
     endif()
 endif()
 
