@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0)
-project(MiddlewareTest)
+project(MinimalMiddleware)
 
 # Use C++11 standard (compatible with older code)
 set(CMAKE_CXX_STANDARD 11)
@@ -149,7 +149,3 @@ if(BUILD_PYTHON_MODULE)
         LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/python"
     )
 endif()
-
-# Copy Cereal license
-file(COPY ${cereal_SOURCE_DIR}/LICENSE DESTINATION ${CMAKE_CURRENT_LIST_DIR}/third_party_licenses/)
-file(RENAME ${CMAKE_CURRENT_LIST_DIR}/third_party_licenses/LICENSE ${CMAKE_CURRENT_LIST_DIR}/third_party_licenses/cereal_LICENSE.txt)
