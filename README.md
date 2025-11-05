@@ -103,9 +103,10 @@ Publishing message on topic 'example_topic'
 ## Publisher
 
 ```c++
+mmw_set_log_level(MMW_LOG_LEVEL_INFO);
 mmw_initialize("127.0.0.1", 5000); // The IP and port for the broker
 mmw_create_publisher("example_topic");
-mmw_publish("example_topic", "Hello, world!");
+mmw_publish("example_topic", "Hello, world!", MMW_RELIABLE); // can also be MMW_BEST_EFFORT
 mmw_cleanup();
 ```
 
@@ -116,6 +117,7 @@ void some_user_defined_callback(const char* message) {
     spdlog::info("Received: {}", message);
 }
 
+mmw_set_log_level(MMW_LOG_LEVEL_INFO);
 mmw_initialize("127.0.0.1", 5000);
 mmw_create_subscriber("example_topic", some_user_defined_callback);
 ```
