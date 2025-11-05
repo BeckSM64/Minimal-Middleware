@@ -6,7 +6,7 @@ It allows applications to easily exchange messages across processes or systems u
 # ✨ Features
 
 - C++11+ compatible
-- Configurable serialization usign nlohmann::json or cereal
+- Configurable serialization using nlohmann::json or cereal
 - Cross-platform TCP communication (Linux/Windows)
 - spdlog-based logging
 - Simple interface for publishers and subscribers
@@ -58,7 +58,7 @@ include(FetchContent)
 FetchContent_Declare(
   mmw
   GIT_REPOSITORY https://github.com/BeckSM64/Minimal-Middleware.git
-  GIT_TAG main # can be a sepcific tag or branch
+  GIT_TAG main # can be a specific tag or branch
 )
 FetchContent_MakeAvailable(mmw)
 ```
@@ -134,3 +134,6 @@ typedef enum {
     MMW_ERROR
 } MmwResult;
 ```
+
+# 📝 License
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
