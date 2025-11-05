@@ -7,7 +7,7 @@ It allows applications to easily exchange messages across processes or systems u
 
 - C++11+ compatible
 - Configurable serialization usign nlohmann::json or cereal
-- Cross-platform TCP communication
+- Cross-platform TCP communication (Linux/Windows)
 - spdlog-based logging
 - Simple interface for publishers and subscribers
 - Extensible message format
@@ -25,6 +25,8 @@ It allows applications to easily exchange messages across processes or systems u
 - [cereal](https://github.com/USCiLab/cereal) — Header-only C++11 serialization library
 - [pybind11](https://github.com/pybind/pybind11) — Seamless C++/Python bindings
 - [SQLite3](https://www.sqlite.org/index.html) — Lightweight relational database for persistence
+
+Dependencies are fetched at build time via CMake FetchContent. Please refer to each library's repository for license information.
 
 ## Steps
 ```bash
