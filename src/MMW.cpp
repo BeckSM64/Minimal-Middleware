@@ -46,6 +46,32 @@ inline MmwResult sendMessage(int sock_fd, const std::string& data) {
 }
 
 /**
+ * Sets the log level for the library
+ */
+void mmw_set_log_level(MmwLogLevel level) {
+    switch (level) {
+        case MMW_LOG_LEVEL_ERROR:
+            spdlog::set_level(spdlog::level::err);
+            break;
+        case MMW_LOG_LEVEL_WARN:
+            spdlog::set_level(spdlog::level::warn);
+            break;
+        case MMW_LOG_LEVEL_INFO:
+            spdlog::set_level(spdlog::level::info);
+            break;
+        case MMW_LOG_LEVEL_DEBUG:
+            spdlog::set_level(spdlog::level::debug);
+            break;
+        case MMW_LOG_LEVEL_TRACE:
+            spdlog::set_level(spdlog::level::trace);
+            break;
+        default:
+            spdlog::set_level(spdlog::level::off);
+            break;
+    }
+}
+
+/**
  * Initialize library settings
  */
 MmwResult mmw_initialize(const char* brokerIp, unsigned short port) {

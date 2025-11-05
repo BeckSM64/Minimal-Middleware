@@ -9,6 +9,9 @@ void test_callback(const char *message) {
 
 int main() {
 
+    // Enable logging
+    mmw_set_log_level(MMW_LOG_LEVEL_OFF);
+
     // Initialize library settings
     mmw_initialize("127.0.0.1", 5000);
 

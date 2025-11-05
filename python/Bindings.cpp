@@ -44,7 +44,16 @@ PYBIND11_MODULE(mmw_python, m) {
         .value("MMW_RELIABLE", MMW_RELIABLE)
         .export_values();
 
-    // Functions
+    // MmwLogLevel enum
+    py::enum_<MmwLogLevel>(m, "MmwLogLevel")
+        .value("MMW_LOG_LEVEL_OFF", MMW_LOG_LEVEL_OFF)
+        .value("MMW_LOG_LEVEL_ERROR", MMW_LOG_LEVEL_ERROR)
+        .value("MMW_LOG_LEVEL_WARN", MMW_LOG_LEVEL_WARN)
+        .value("MMW_LOG_LEVEL_INFO", MMW_LOG_LEVEL_INFO)
+        .value("MMW_LOG_LEVEL_DEBUG", MMW_LOG_LEVEL_DEBUG)
+        .export_values();
+
+    // Core middleware functions
     m.def("initialize", &mmw_initialize, py::arg("brokerIp"), py::arg("port"));
     m.def("create_publisher", &mmw_create_publisher, py::arg("topic"));
     m.def("create_subscriber", &mmw_create_subscriber, py::arg("topic"), py::arg("callback"));
@@ -52,6 +61,10 @@ PYBIND11_MODULE(mmw_python, m) {
     m.def("publish", &mmw_publish, py::arg("topic"), py::arg("message"), py::arg("reliability"));
     m.def("publish_raw", &mmw_publish_raw, py::arg("topic"), py::arg("message"), py::arg("size"), py::arg("reliability"));
     m.def("cleanup", &mmw_cleanup);
+
+    // Logging functions
+    m.def("set_log_level", &mmw_set_log_level, py::arg("level"),
+          "Set the global log level (use MmwLogLevel).");
 
     // Python-friendly Subscriber wrapper
     py::class_<PySubscriber>(m, "Subscriber")

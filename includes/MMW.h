@@ -23,6 +23,24 @@ typedef enum {
     MMW_RELIABLE // At least once
 } MmwReliability;
 
+typedef enum {
+    MMW_LOG_LEVEL_OFF,
+    MMW_LOG_LEVEL_ERROR,
+    MMW_LOG_LEVEL_WARN,
+    MMW_LOG_LEVEL_INFO,
+    MMW_LOG_LEVEL_DEBUG,
+    MMW_LOG_LEVEL_TRACE
+} MmwLogLevel;
+
+/**
+ * @brief Set the current log level for the middleware.
+ *
+ * Controls the verbosity of internal log output.
+ *
+ * @param level Logging level (see ::MmwLogLevel enum).
+ */
+void mmw_set_log_level(MmwLogLevel level);
+
 /**
  * @brief Initialize the middleware library.
  *
