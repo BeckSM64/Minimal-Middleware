@@ -20,11 +20,11 @@ It allows applications to easily exchange messages across processes or systems u
 - Internet access (for FetchContent dependencies)
 
 ## Dependencies
-- spdlog
-- nlohmann::json
-- pybind11
-- cereal
-- sqlite3
+- [spdlog](https://github.com/gabime/spdlog) — Fast C++ logging library
+- [nlohmann/json](https://github.com/nlohmann/json) — JSON serialization for modern C++
+- [cereal](https://github.com/USCiLab/cereal) — Header-only C++11 serialization library
+- [pybind11](https://github.com/pybind/pybind11) — Seamless C++/Python bindings
+- [SQLite3](https://www.sqlite.org/index.html) — Lightweight relational database for persistence
 
 ## Steps
 ```bash
