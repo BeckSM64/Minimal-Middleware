@@ -50,7 +50,7 @@ make
     - subscribe_raw
 
 ## Fetch Content
-You can also easily integrate the project into your project if you're using CMake
+You can also easily integrate the library into your project if you're using CMake
 ```bash
 include(FetchContent)
 FetchContent_Declare(
