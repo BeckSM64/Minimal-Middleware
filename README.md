@@ -1,16 +1,16 @@
 # Minimal Middleware (MMW)
 
-MMW is a lightweight, broker-based publish/subscribe middleware implemented in modern C++.
-It allows applications to easily exchange messages across processes or systems using simple network sockets and JSON serialization.
+MMW is a lightweight, broker-based publish/subscribe middleware implemented in C++.
+It allows applications to easily exchange messages across processes or systems using simple network sockets and JSON or binary serialization.
 
 # ✨ Features
 
 - C++11+ compatible
-- Header-only serialization using nlohmann::json
+- Configurable serialization usign nlohmann::json or cereal
 - Cross-platform TCP communication
 - spdlog-based logging
 - Simple interface for publishers and subscribers
-- Extensible message format (supports future typed messages)
+- Extensible message format
 
 # 📦 Building
 ## Requirements
@@ -25,7 +25,7 @@ git clone https://github.com/BeckSM64/Minimal-Middleware.git
 cd Minimal-Middleware
 mkdir -p build/
 cd build/
-cmake ../
+cmake ../ -DBUILD_BROKER=ON -DBUILD_SAMPLE_APPS=ON -DCEREAL_SERIALIZER=ON
 make
 ```
 
@@ -39,22 +39,12 @@ make
     - subscribe
     - publish_c
     - subscribe_c
-
-# ⚙️ Configuration
-
-config.yml controls the broker connection:
-
-```yaml
-    broker:
-        - brokerIp: 127.0.0.1
-        - brokerPort: 5000
-```
-
-Applications will read this in at runtime.
+    - publish_raw
+    - subscribe_raw
 
 # 🚀 Usage
 1. Start the Broker
-    - ```./broker```
+    - ```./broker 5000```
     - The broker listens for publisher and subscriber connections and routes messages by topic.
 
 2. Start a Subscriber
@@ -121,10 +111,3 @@ typedef enum {
     MMW_ERROR
 } MmwResult;
 ```
-
-# 🧠 Future Work
-
-- Typed message publishing
-- Zero-copy serialization options
-- Encrypted or compressed transport
-- Broker clustering
