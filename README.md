@@ -19,6 +19,13 @@ It allows applications to easily exchange messages across processes or systems u
 - A C++11-compatible compiler
 - Internet access (for FetchContent dependencies)
 
+## Dependencies
+- spdlog
+- nlohmann::json
+- pybind11
+- cereal
+- sqlite3
+
 ## Steps
 ```bash
 git clone https://github.com/BeckSM64/Minimal-Middleware.git
@@ -41,6 +48,18 @@ make
     - subscribe_c
     - publish_raw
     - subscribe_raw
+
+## Fetch Content
+You can also easily integrate the project into your project if you're using CMake
+```bash
+include(FetchContent)
+FetchContent_Declare(
+  mmw
+  GIT_REPOSITORY https://github.com/BeckSM64/Minimal-Middleware.git
+  GIT_TAG main # can be a sepcific tag or branch
+)
+FetchContent_MakeAvailable(mmw)
+```
 
 # 🚀 Usage
 1. Start the Broker
@@ -84,7 +103,7 @@ Publishing message on topic 'example_topic'
 ## Publisher
 
 ```c++
-mmw_initialize("config.yml");
+mmw_initialize("127.0.0.1", 5000); // The IP and port for the broker
 mmw_create_publisher("example_topic");
 mmw_publish("example_topic", "Hello, world!");
 mmw_cleanup();
@@ -97,7 +116,7 @@ void some_user_defined_callback(const char* message) {
     spdlog::info("Received: {}", message);
 }
 
-mmw_initialize("config.yml");
+mmw_initialize("127.0.0.1", 5000);
 mmw_create_subscriber("example_topic", some_user_defined_callback);
 ```
 
