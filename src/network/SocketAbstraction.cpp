@@ -48,7 +48,7 @@ int SocketAbstraction::SocketCleanup() {
 }
 
 int SocketAbstraction::Send(int s, const void* buf, int32_t len, int32_t flags) {
-    return send(s, (const char*) buf, len, flags);
+    return send(s, (const char*) buf, len, flags | MSG_NOSIGNAL);
 }
 
 int SocketAbstraction::Recv(int s, void* buf, int32_t len, int32_t flags) {
