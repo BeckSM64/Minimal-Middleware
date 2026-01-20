@@ -146,6 +146,6 @@ if(BUILD_PYTHON_MODULE)
     )
     target_link_libraries(mmw_python PRIVATE mmw)
     set_target_properties(mmw_python PROPERTIES
-        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/python"
+        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/python/mmw_python/"
     )
 endif()
