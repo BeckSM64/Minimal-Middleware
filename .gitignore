@@ -3,8 +3,7 @@ build/
 venv/
 dist/
 *.egg-info/
-python/*.yml
-python/*.so
-python/mmw_python/*.so
+*.yml
+*.so
 __pycache__/
 
