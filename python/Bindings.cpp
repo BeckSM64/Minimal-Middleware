@@ -1,50 +1,68 @@
 #include <pybind11/pybind11.h>
 #include "MMW.h"
 
+#include <unordered_map>
+#include <string>
+#include <mutex>
+
 namespace py = pybind11;
 
-static py::function g_python_callback;
+// Map topic -> Python callback
+static std::unordered_map<std::string, py::function> g_callbacks;
+static std::mutex g_callbacks_mutex;
 
-extern "C" void subscriber_trampoline(const char* msg) {
-    py::gil_scoped_acquire acquire;
-    if (g_python_callback) {
-        g_python_callback(std::string(msg));
+/*
+ * C trampoline — EXACT signature expected by mmw_create_subscriber
+ */
+extern "C" void subscriber_trampoline(const char* topic, const char* message) {
+    py::gil_scoped_acquire gil;
+
+    std::lock_guard<std::mutex> lock(g_callbacks_mutex);
+    auto it = g_callbacks.find(topic);
+    if (it != g_callbacks.end()) {
+        it->second(topic, message);
     }
 }
 
+/*
+ * Python-facing Subscriber object
+ */
 class PySubscriber {
 public:
     PySubscriber(const std::string& topic, py::function callback)
-        : callback(callback)
+        : topic_(topic)
     {
-        g_python_callback = callback;
-        mmw_create_subscriber(topic.c_str(), &subscriber_trampoline);
+        {
+            std::lock_guard<std::mutex> lock(g_callbacks_mutex);
+            g_callbacks[topic_] = std::move(callback);
+        }
+
+        mmw_create_subscriber(topic_.c_str(), &subscriber_trampoline);
     }
 
     ~PySubscriber() {
-        mmw_cleanup();
+        std::lock_guard<std::mutex> lock(g_callbacks_mutex);
+        g_callbacks.erase(topic_);
+        // NOTE: mmw_cleanup() should usually be global, not per-subscriber
     }
 
 private:
-    py::function callback;
+    std::string topic_;
 };
 
 PYBIND11_MODULE(mmw_python, m) {
     m.doc() = "Python bindings for Minimal Middleware";
 
-    // MmwResult enum
     py::enum_<MmwResult>(m, "MmwResult")
         .value("MMW_OK", MMW_OK)
         .value("MMW_ERROR", MMW_ERROR)
         .export_values();
 
-    // MmwReliability enum
     py::enum_<MmwReliability>(m, "MmwReliability")
         .value("MMW_BEST_EFFORT", MMW_BEST_EFFORT)
         .value("MMW_RELIABLE", MMW_RELIABLE)
         .export_values();
 
-    // MmwLogLevel enum
     py::enum_<MmwLogLevel>(m, "MmwLogLevel")
         .value("MMW_LOG_LEVEL_OFF", MMW_LOG_LEVEL_OFF)
         .value("MMW_LOG_LEVEL_ERROR", MMW_LOG_LEVEL_ERROR)
@@ -53,20 +71,25 @@ PYBIND11_MODULE(mmw_python, m) {
         .value("MMW_LOG_LEVEL_DEBUG", MMW_LOG_LEVEL_DEBUG)
         .export_values();
 
-    // Core middleware functions
-    m.def("initialize", &mmw_initialize, py::arg("brokerIp"), py::arg("port"));
-    m.def("create_publisher", &mmw_create_publisher, py::arg("topic"));
-    m.def("create_subscriber", &mmw_create_subscriber, py::arg("topic"), py::arg("callback"));
-    m.def("create_subscriber_raw", &mmw_create_subscriber_raw, py::arg("topic"), py::arg("callback"));
-    m.def("publish", &mmw_publish, py::arg("topic"), py::arg("message"), py::arg("reliability"));
-    m.def("publish_raw", &mmw_publish_raw, py::arg("topic"), py::arg("message"), py::arg("size"), py::arg("reliability"));
+    m.def("initialize", &mmw_initialize,
+          py::arg("broker_ip"), py::arg("port"));
+
+    m.def("create_publisher", &mmw_create_publisher,
+          py::arg("topic"));
+
+    m.def("publish", &mmw_publish,
+          py::arg("topic"), py::arg("message"), py::arg("reliability"));
+
+    m.def("publish_raw", &mmw_publish_raw,
+          py::arg("topic"), py::arg("payload"),
+          py::arg("size"), py::arg("reliability"));
+
+    m.def("set_log_level", &mmw_set_log_level,
+          py::arg("level"));
+
     m.def("cleanup", &mmw_cleanup);
 
-    // Logging functions
-    m.def("set_log_level", &mmw_set_log_level, py::arg("level"),
-          "Set the global log level (use MmwLogLevel).");
-
-    // Python-friendly Subscriber wrapper
     py::class_<PySubscriber>(m, "Subscriber")
-        .def(py::init<const std::string&, py::function>());
+        .def(py::init<const std::string&, py::function>(),
+             py::arg("topic"), py::arg("callback"));
 }

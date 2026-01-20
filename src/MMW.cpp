@@ -163,8 +163,7 @@ void subscriberThreadFunc(int sock_fd, std::atomic<bool>* runningFlag, Subscribe
                 : g_serializer->deserialize_raw(std::string(buf.data(), msgLen));
 
             if (msg.type == "publish") {
-                callback(msg);
-
+                
                 if (msg.reliability) {
                     MmwMessage ackMsg;
                     ackMsg.messageId = msg.messageId;
@@ -176,6 +175,7 @@ void subscriberThreadFunc(int sock_fd, std::atomic<bool>* runningFlag, Subscribe
                         spdlog::info("ACK sent for {}", ackMsg.messageId);
                     }
                 }
+                callback(msg);
             }
         } catch (const std::exception& e) {
             spdlog::error("Subscriber failed to deserialize: {}", e.what());
@@ -246,18 +246,18 @@ MmwResult createSubscriberInternal(const char* topic, std::function<void(const M
 /**
  * Create subscriber
  */
-MmwResult mmw_create_subscriber(const char* topic, void (*cb)(const char*)) {
-    return createSubscriberInternal(topic, [cb](const MmwMessage& msg) {
-        cb(msg.payload.c_str());
+MmwResult mmw_create_subscriber(const char* topic, void (*cb)(const char*, const char*)) {
+    return createSubscriberInternal(topic, [cb, topic](const MmwMessage& msg) {
+        cb(topic, msg.payload.c_str());
     });
 }
 
 /**
  * Create subscriber for raw payload
  */
-MmwResult mmw_create_subscriber_raw(const char* topic, void (*cb)(void*)) {
-    return createSubscriberInternal(topic, [cb](const MmwMessage& msg) {
-        cb(msg.payload_raw);
+MmwResult mmw_create_subscriber_raw(const char* topic, void (*cb)(const char*, void*)) {
+    return createSubscriberInternal(topic, [cb, topic](const MmwMessage& msg) {
+        cb(topic, msg.payload_raw);
     });
 }
 

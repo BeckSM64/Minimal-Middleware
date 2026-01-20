@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include "MMW.h"
 
-void test_callback(const char *message) {
+void test_callback(const char *topic, const char *message) {
     printf("Got message in callback: %s\n", message);
 }
 

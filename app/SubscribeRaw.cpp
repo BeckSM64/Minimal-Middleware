@@ -13,7 +13,7 @@ typedef struct {
     short testShort;
 } TestRawMessageStruct;
 
-void testRawMessageCallback(void* message) {
+void testRawMessageCallback(const char* topic, void* message) {
     TestRawMessageStruct *testRawMessageString = reinterpret_cast<TestRawMessageStruct*>(message);
     spdlog::info("{} {} {} {} {} {}", 
         testRawMessageString->testString1,

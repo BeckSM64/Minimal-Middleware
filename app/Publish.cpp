@@ -10,10 +10,12 @@ int main() {
 
     // Create publishers
     mmw_create_publisher("Test Topic");
+    mmw_create_publisher("Test Topic 2");
 
     // Publish test message
-    mmw_publish("Test Topic", "This is a test message for Test Topic, best effort", MMW_BEST_EFFORT);
+    // mmw_publish("Test Topic", "This is a test message for Test Topic, best effort", MMW_BEST_EFFORT);
     mmw_publish("Test Topic", "This is a test message for Test Topic, reliable", MMW_RELIABLE);
+    mmw_publish("Test Topic 2", "This is a test message for Test Topic, reliable 2", MMW_RELIABLE);
 
     // Clean up publishers
     mmw_cleanup();
