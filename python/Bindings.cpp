@@ -1,58 +1,111 @@
 #include <pybind11/pybind11.h>
-#include "MMW.h"
-
-#include <unordered_map>
-#include <string>
+#include <pybind11/functional.h>
+#include <pybind11/chrono.h>
+#include <thread>
 #include <mutex>
+#include <condition_variable>
+#include <queue>
+#include <map>
+#include <string>
+#include "MMW.h"
 
 namespace py = pybind11;
 
-// Map topic -> Python callback
-static std::unordered_map<std::string, py::function> g_callbacks;
-static std::mutex g_callbacks_mutex;
+// Forward declaration
+class PySubscriber;
 
-/*
- * C trampoline — EXACT signature expected by mmw_create_subscriber
- */
-extern "C" void subscriber_trampoline(const char* topic, const char* message) {
-    py::gil_scoped_acquire gil;
+// Map of topic -> PySubscriber instance
+static std::map<std::string, PySubscriber*> g_instanceMap;
 
-    std::lock_guard<std::mutex> lock(g_callbacks_mutex);
-    auto it = g_callbacks.find(topic);
-    if (it != g_callbacks.end()) {
-        it->second(topic, message);
-    }
-}
+// Subscriber trampoline called by C++ library
+extern "C" void subscriber_trampoline(const char* topic, const char* message);
 
-/*
- * Python-facing Subscriber object
- */
+// Python-facing subscriber class
 class PySubscriber {
 public:
-    PySubscriber(const std::string& topic, py::function callback)
-        : topic_(topic)
+    PySubscriber(const std::string& topic_, py::function callback_)
+        : topic(topic_), callback(callback_), running(true)
     {
-        {
-            std::lock_guard<std::mutex> lock(g_callbacks_mutex);
-            g_callbacks[topic_] = std::move(callback);
-        }
+        // Register in global map
+        g_instanceMap[topic] = this;
 
-        mmw_create_subscriber(topic_.c_str(), &subscriber_trampoline);
+        // Start Python worker thread
+        workerThread = std::thread(&PySubscriber::processQueue, this);
+
+        // Create C++ subscriber
+        mmw_create_subscriber(topic.c_str(), &subscriber_trampoline);
     }
 
     ~PySubscriber() {
-        std::lock_guard<std::mutex> lock(g_callbacks_mutex);
-        g_callbacks.erase(topic_);
-        // NOTE: mmw_cleanup() should usually be global, not per-subscriber
+        running = false;
+        cv.notify_all();
+        if (workerThread.joinable())
+            workerThread.join();
+
+        // Remove from global map
+        g_instanceMap.erase(topic);
+
+        // Optional: clean up library if desired
+        // mmw_cleanup();  // Don't do this if you have multiple subscribers
+    }
+
+    // Enqueue message from C++ subscriber thread
+    void enqueueMessage(const std::string& msg) {
+        {
+            std::lock_guard<std::mutex> lock(queueMutex);
+            msgQueue.push(msg);
+        }
+        cv.notify_one();
     }
 
 private:
-    std::string topic_;
+    std::string topic;
+    py::function callback;
+    std::thread workerThread;
+    std::atomic<bool> running;
+
+    std::mutex queueMutex;
+    std::condition_variable cv;
+    std::queue<std::string> msgQueue;
+
+    void processQueue() {
+        while (running) {
+            std::unique_lock<std::mutex> lock(queueMutex);
+            cv.wait(lock, [this] { return !msgQueue.empty() || !running; });
+
+            while (!msgQueue.empty()) {
+                std::string msg = std::move(msgQueue.front());
+                msgQueue.pop();
+                lock.unlock();
+
+                try {
+                    py::gil_scoped_acquire gil;
+                    callback(topic, msg);
+                } catch (const std::exception &e) {
+                    py::print("[PySubscriber] Exception in callback:", e.what());
+                }
+
+                lock.lock();
+            }
+        }
+    }
+
+    friend void subscriber_trampoline(const char* topic, const char* message);
 };
 
+// Trampoline called by C++ library
+extern "C" void subscriber_trampoline(const char* topic, const char* message) {
+    auto it = g_instanceMap.find(topic);
+    if (it != g_instanceMap.end()) {
+        it->second->enqueueMessage(message ? message : "");
+    }
+}
+
+// PYBIND11 MODULE
 PYBIND11_MODULE(mmw_python, m) {
     m.doc() = "Python bindings for Minimal Middleware";
 
+    // Enums
     py::enum_<MmwResult>(m, "MmwResult")
         .value("MMW_OK", MMW_OK)
         .value("MMW_ERROR", MMW_ERROR)
@@ -69,26 +122,19 @@ PYBIND11_MODULE(mmw_python, m) {
         .value("MMW_LOG_LEVEL_WARN", MMW_LOG_LEVEL_WARN)
         .value("MMW_LOG_LEVEL_INFO", MMW_LOG_LEVEL_INFO)
         .value("MMW_LOG_LEVEL_DEBUG", MMW_LOG_LEVEL_DEBUG)
+        .value("MMW_LOG_LEVEL_TRACE", MMW_LOG_LEVEL_TRACE)
         .export_values();
 
-    m.def("initialize", &mmw_initialize,
-          py::arg("broker_ip"), py::arg("port"));
-
-    m.def("create_publisher", &mmw_create_publisher,
-          py::arg("topic"));
-
-    m.def("publish", &mmw_publish,
-          py::arg("topic"), py::arg("message"), py::arg("reliability"));
-
+    // Core API
+    m.def("initialize", &mmw_initialize, py::arg("broker_ip"), py::arg("port"));
+    m.def("create_publisher", &mmw_create_publisher, py::arg("topic"));
+    m.def("publish", &mmw_publish, py::arg("topic"), py::arg("message"), py::arg("reliability"));
     m.def("publish_raw", &mmw_publish_raw,
-          py::arg("topic"), py::arg("payload"),
-          py::arg("size"), py::arg("reliability"));
-
-    m.def("set_log_level", &mmw_set_log_level,
-          py::arg("level"));
-
+          py::arg("topic"), py::arg("payload"), py::arg("size"), py::arg("reliability"));
+    m.def("set_log_level", &mmw_set_log_level, py::arg("level"));
     m.def("cleanup", &mmw_cleanup);
 
+    // Subscriber wrapper
     py::class_<PySubscriber>(m, "Subscriber")
         .def(py::init<const std::string&, py::function>(),
              py::arg("topic"), py::arg("callback"));
