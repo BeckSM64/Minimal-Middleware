@@ -10,7 +10,7 @@ requires-python = ">=3.12"
 
 [tool.setuptools]
 packages = ["mmw_python"]
-package-dir = { "mmw_python" = "python/mmw_python" }
+package-dir = { "mmw_python" = "python" }
 
 [tool.setuptools.package-data]
 mmw_python = ["*.so", "__init__.py"]
