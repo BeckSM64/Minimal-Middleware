@@ -13,4 +13,4 @@ packages = ["mmw"]
 package-dir = { "mmw" = "mmw" }
 
 [tool.setuptools.package-data]
-mmw = ["*.so", "__init__.py"]
+mmw = ["*.so", "*.pyd", "__init__.py"]

@@ -146,11 +146,20 @@ if(BUILD_PYTHON_MODULE)
     )
     target_link_libraries(_mmw_module PRIVATE mmw)
 
-    # Output the .so directly as mmw inside the python folder
+    # Output the .pyd/.so directly as mmw inside the python/mmw folder
     set_target_properties(_mmw_module PROPERTIES
-        OUTPUT_NAME "mmw" # the .so will be named mmw.so
+        OUTPUT_NAME "mmw" # the .pyd/.so will be named mmw
         LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/python/mmw/"
         BUILD_RPATH "$ORIGIN"
         INSTALL_RPATH "$ORIGIN"
     )
+
+    # Copy libmmw.dll into the Python package folder (Windows only)
+    if(WIN32)
+        add_custom_command(TARGET _mmw_module POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_CURRENT_BINARY_DIR}/libmmw.dll"
+                "${CMAKE_CURRENT_SOURCE_DIR}/python/mmw/libmmw.dll"
+        )
+    endif()
 endif()
