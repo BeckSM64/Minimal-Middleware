@@ -102,7 +102,7 @@ extern "C" void subscriber_trampoline(const char* topic, const char* message) {
 }
 
 // PYBIND11 MODULE
-PYBIND11_MODULE(mmw_python, m) {
+PYBIND11_MODULE(mmw, m) {
     m.doc() = "Python bindings for Minimal Middleware";
 
     // Enums

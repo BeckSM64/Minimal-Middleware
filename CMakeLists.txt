@@ -139,13 +139,18 @@ endif()
 
 # Build Python module if requested
 if(BUILD_PYTHON_MODULE)
-    pybind11_add_module(mmw_python python/Bindings.cpp)
-    target_include_directories(mmw_python PRIVATE 
+    pybind11_add_module(_mmw_module python/Bindings.cpp)
+    target_include_directories(_mmw_module PRIVATE 
         ${CMAKE_CURRENT_LIST_DIR}/ 
         ${CMAKE_CURRENT_LIST_DIR}/includes/
     )
-    target_link_libraries(mmw_python PRIVATE mmw)
-    set_target_properties(mmw_python PROPERTIES
-        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/python/"
+    target_link_libraries(_mmw_module PRIVATE mmw)
+
+    # Output the .so directly as mmw inside the python folder
+    set_target_properties(_mmw_module PROPERTIES
+        OUTPUT_NAME "mmw" # the .so will be named mmw.so
+        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/python/mmw/"
+        BUILD_RPATH "$ORIGIN"
+        INSTALL_RPATH "$ORIGIN"
     )
 endif()

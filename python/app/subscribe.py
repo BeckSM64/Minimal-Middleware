@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-import mmw_python as mmw
+import mmw
 import time
 import signal
 import sys
