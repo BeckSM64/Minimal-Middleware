@@ -7,4 +7,4 @@ python/*.yml
 python/*.so
 python/mmw_python/*.so
 __pycache__/
-
+*.pyd

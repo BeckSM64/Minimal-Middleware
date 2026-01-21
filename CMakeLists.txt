@@ -60,8 +60,15 @@ else()
     set(SERIALIZER_SRC ${CMAKE_CURRENT_LIST_DIR}/src/serialization/CerealSerializer.cpp)
 endif()
 
-# Add BUILD_SHARED_LIBS option
-option(BUILD_SHARED_LIBS "Build as shared library" ON)
+# Build a static lib if we're building a Python whl on Windows
+# to keep everything in one self contained installable
+if(BUILD_PYTHON_MODULE)
+    if(WIN32)
+        option(BUILD_SHARED_LIBS "Build as shared library" OFF)
+    endif()
+else()
+    option(BUILD_SHARED_LIBS "Build as shared library" ON)
+endif()
 
 # Create the mw library
 add_library(
@@ -154,12 +161,15 @@ if(BUILD_PYTHON_MODULE)
         INSTALL_RPATH "$ORIGIN"
     )
 
-    # Copy libmmw.dll into the Python package folder (Windows only)
+    # Static linking of gcc and c++ standard libraries
     if(WIN32)
-        add_custom_command(TARGET _mmw_module POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CMAKE_CURRENT_BINARY_DIR}/libmmw.dll"
-                "${CMAKE_CURRENT_SOURCE_DIR}/python/mmw/libmmw.dll"
+        target_link_options(_mmw_module PRIVATE
+            "-static-libgcc"
+            "-static-libstdc++"
+            # Force static linking of winpthread, which often stays dynamic otherwise
+            "-Wl,-Bstatic,--whole-archive"
+            "-lwinpthread"
+            "-Wl,--no-whole-archive,-Bdynamic"
         )
     endif()
 endif()
