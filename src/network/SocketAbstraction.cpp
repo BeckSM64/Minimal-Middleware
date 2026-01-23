@@ -1,5 +1,6 @@
 #ifdef __linux__ 
     #include <arpa/inet.h>
+    #include <unistd.h>
 #elif _WIN32
 
 // Define target Windows version before including WinSock headers.
@@ -16,8 +17,6 @@
     #error "Unsupported platform"
 #endif
 
-#include <iostream>
-
 #include "SocketAbstraction.h"
 
 int SocketAbstraction::SocketStartup() {
@@ -28,13 +27,25 @@ int SocketAbstraction::SocketStartup() {
     WSADATA wsaData;
     int result = WSAStartup(MAKEWORD(2, 2), &wsaData);
     if (result != 0) {
-        fprintf(stderr, "WSAStartup failed with error: %d\n", result);
+        // fprintf(stderr, "WSAStartup failed with error: %d\n", result);
         return result;
     }
 #else
     #error "Unsupported platform"
 #endif
     return 0;
+}
+
+int SocketAbstraction::SocketClose(int s) {
+#ifdef __linux__
+    shutdown(s, SHUT_RD);
+    return close(s); // TODO: Might be helpful and more accurate to check the return of shutdown as well
+#elif _WIN32
+    shutdown(s, SD_RECEIVE);
+    return closesocket(s);
+#else
+    #error "Unsupported platform"
+#endif
 }
 
 int SocketAbstraction::SocketCleanup() {

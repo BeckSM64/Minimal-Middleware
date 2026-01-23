@@ -13,6 +13,7 @@ class SocketAbstraction {
     public:
         static int SocketStartup();
         static int SocketCleanup();
+        static int SocketClose(int s);
         static int Send(int s, const void* buf, int32_t len, int32_t flags);
         static int Recv(int s, void* buf, int32_t len, int32_t flags);
         static int InetPtonAbstraction(int family, const char* pszAddrString, void* pAddrBuf);
