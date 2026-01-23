@@ -111,6 +111,26 @@ MmwResult mmw_publish(const char* topic, const char* message, MmwReliability rel
 MmwResult mmw_publish_raw(const char* topic, void* message, size_t size, MmwReliability reliability);
 
 /**
+ * @brief Delete publisher.
+ *
+ * Destroys a singular publisher for a specified topic.
+ *
+ * @param topic The topic name.
+ * @return MMW_OK on success, MMW_ERROR on failure.
+ */
+MmwResult mmw_delete_publisher(const char* topic);
+
+/**
+ * @brief Delete subscriber.
+ *
+ * Destroys a singular subscriber for a specified topic.
+ *
+ * @param topic The topic name.
+ * @return MMW_OK on success, MMW_ERROR on failure.
+ */
+MmwResult mmw_delete_subscriber(const char* topic);
+
+/**
  * @brief Clean up all middleware resources.
  *
  * Destroys all publishers and subscribers and releases internal memory.

@@ -37,7 +37,7 @@ inline MmwResult sendMessage(int sock_fd, const std::string& data) {
         spdlog::error("Failed to send message to broker");
         return MMW_ERROR;
     }
-    if (SocketAbstraction::Send(sock_fd, data.data(), data.size(), 0) != (ssize_t)data.size()) {
+    if (SocketAbstraction::Send(sock_fd, data.data(), data.size(), 0) != (size_t)data.size()) {
         spdlog::error("Failed to send message to broker");
         return MMW_ERROR;
     }
@@ -314,6 +314,58 @@ MmwResult mmw_publish_raw(const char* topic, void* payload, size_t size, MmwReli
 }
 
 /**
+ * Delete publisher
+ */
+MmwResult mmw_delete_publisher(const char* topic) {
+    auto it = publisherTopicToSocketFdMap.find(topic);
+    if (it == publisherTopicToSocketFdMap.end()) {
+        return MMW_ERROR;
+    }
+
+    int sock_fd = it->second;
+
+    MmwMessage msg{0, "unregister", topic, ""};
+    if (sendMessage(sock_fd, g_serializer->serialize(msg)) == MMW_ERROR) {
+        spdlog::error("Failed to unregister publisher for topic {}", topic);
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    SocketAbstraction::SocketClose(sock_fd);
+
+    publisherTopicToSocketFdMap.erase(it);
+
+    spdlog::info("Publisher socket closed for topic: {}", topic);
+    return MMW_OK;
+}
+
+/**
+ * Delete subscriber
+ */
+MmwResult mmw_delete_subscriber(const char* topic) {
+    auto it = subscriberTopicToSocketFdMap.find(topic);
+    if (it == subscriberTopicToSocketFdMap.end()) {
+        return MMW_ERROR;
+    }
+
+    int sock_fd = it->second;
+
+    // Ask broker to unregister (best-effort)
+    MmwMessage msg{0, "unregister", topic, ""};
+    if (sendMessage(sock_fd, g_serializer->serialize(msg)) == MMW_ERROR) {
+        spdlog::error("Failed to unregister subscriber for topic {}", topic);
+    }
+
+    // Give broker a moment, then force unblock recv()
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    SocketAbstraction::SocketClose(sock_fd);
+
+    subscriberTopicToSocketFdMap.erase(it);
+
+    spdlog::info("Subscriber socket closed for topic: {}", topic);
+    return MMW_OK;
+}
+
+/**
  * Clean up publishers/subscribers
  */
 MmwResult mmw_cleanup() {
@@ -341,7 +393,6 @@ MmwResult mmw_cleanup() {
                 spdlog::error("Failed to unregister subscriber for topic {}", pair.first);
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(20));
-            spdlog::info("Attempting to close socket for topic: {}", pair.first);
             SocketAbstraction::SocketClose(sock_fd);
             spdlog::info("Subscriber socket closed for topic: {}", pair.first);
         }

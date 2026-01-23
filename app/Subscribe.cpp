@@ -1,62 +1,47 @@
 #include <spdlog/spdlog.h>
-#include <spdlog/sinks/basic_file_sink.h>
 #include <thread>
 #include <chrono>
 #include <csignal>
+#include <atomic>
 #include "MMW.h"
 
-// Global flag for clean exit
 std::atomic<bool> g_running(true);
 
-void signal_handler(int signal) {
+void signal_handler(int) {
     spdlog::info("Signal caught, stopping...");
     g_running = false;
 }
 
-void test_callback(const char* topic, const char* message) {
-    spdlog::info("Got message in callback: {}", message);
-    spdlog::info("Callback knows the topic is: {}", topic);
-}
-
-void test_callback_2(const char* topic, const char* message) {
-    spdlog::info("Got message in callback 2: {}", message);
-    spdlog::info("Callback knows the topic is: {}", topic);
+void on_message(const char* topic, const char* message) {
+    spdlog::info("[SUB] {} -> {}", topic, message);
 }
 
 int main() {
-    // Setup signal handler for Ctrl+C
     std::signal(SIGINT, signal_handler);
 
-    // Enable logging
     mmw_set_log_level(MMW_LOG_LEVEL_TRACE);
 
-    // Initialize library
-    mmw_initialize("127.0.0.1", 5000);
+    if (mmw_initialize("127.0.0.1", 5000) != MMW_OK) {
+        return 1;
+    }
 
-    // Create subscribers
-    mmw_create_subscriber("Test Topic", test_callback);
-    mmw_create_subscriber("Test Topic 2", test_callback_2);
+    // Subscribe
+    mmw_create_subscriber("Test Topic", on_message);
+    mmw_create_subscriber("Test Topic 2", on_message);
 
-    // Create publishers
-    mmw_create_publisher("Test Topic");
-    mmw_create_publisher("Test Topic 2");
+    spdlog::info("Subscriber running. Waiting for messages...");
 
-    // Send some test messages
-    for (int i = 0; i < 5; ++i) {
-        mmw_publish("Test Topic", ("Hello " + std::to_string(i)).c_str(), MMW_BEST_EFFORT);
-        mmw_publish("Test Topic 2", ("World " + std::to_string(i)).c_str(), MMW_BEST_EFFORT);
+    while (g_running) {
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
     }
 
-    spdlog::info("Entering main loop, press Ctrl+C to exit");
+    spdlog::info("Deleting subscribers...");
+    mmw_delete_subscriber("Test Topic");
+    mmw_delete_subscriber("Test Topic 2");
 
-    // Keep main alive until signal
-    while (g_running) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    }
-
-    spdlog::info("Stopping subscribers and cleaning up...");
+    // Optional: still safe for global cleanup (serializer, maps, joins)
     mmw_cleanup();
-    spdlog::info("Cleanup complete. Exiting.");
+
+    spdlog::info("Exit.");
     return 0;
 }
