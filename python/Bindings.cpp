@@ -135,7 +135,7 @@ PYBIND11_MODULE(mmw, m) {
     m.def("cleanup", &mmw_cleanup);
 
     // Subscriber wrapper
-    py::class_<PySubscriber>(m, "Subscriber")
+    py::class_<PySubscriber>(m, "create_subscriber")
         .def(py::init<const std::string&, py::function>(),
              py::arg("topic"), py::arg("callback"));
 }
