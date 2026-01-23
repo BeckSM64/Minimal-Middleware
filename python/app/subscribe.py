@@ -17,8 +17,8 @@ def my_callback_2(topic: str, msg: str):
 mmw.initialize("127.0.0.1", 5000)
 
 # Create a subscriber object
-subscriber = mmw.Subscriber("Test Topic", my_callback)
-subscriber_2 = mmw.Subscriber("Test Topic 2", my_callback_2)
+subscriber = mmw.create_subscriber("Test Topic", my_callback)
+subscriber_2 = mmw.create_subscriber("Test Topic 2", my_callback_2)
 
 print("Waiting for messages... Ctrl+C to exit")
 

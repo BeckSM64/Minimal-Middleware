@@ -129,8 +129,6 @@ PYBIND11_MODULE(mmw, m) {
     m.def("initialize", &mmw_initialize, py::arg("broker_ip"), py::arg("port"));
     m.def("create_publisher", &mmw_create_publisher, py::arg("topic"));
     m.def("publish", &mmw_publish, py::arg("topic"), py::arg("message"), py::arg("reliability"));
-    m.def("publish_raw", &mmw_publish_raw,
-          py::arg("topic"), py::arg("payload"), py::arg("size"), py::arg("reliability"));
     m.def("set_log_level", &mmw_set_log_level, py::arg("level"));
     m.def("delete_publisher", &mmw_delete_publisher, py::arg("topic"));
     m.def("delete_subscriber", &mmw_delete_subscriber, py::arg("topic"));
