@@ -95,13 +95,14 @@ jobs:
 
       - name: Build Python binding wheel
         run: |
+          cd python/
           python3 -m build .
 
       - name: Upload Python wheel
         uses: actions/upload-artifact@v4
         with:
           name: python-wheel
-          path: dist/
+          path: python/dist/
 
   # Install and import wheel
   python-test:
@@ -120,13 +121,13 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: python-wheel
-          path: dist/
+          path: python/dist/
 
       - name: Install wheel
         run: |
-          cd dist/
+          cd python/dist/
           python3 -m pip install --upgrade pip
-          python3 -m pip install mmw_python-0.1.0-py3-none-any.whl
+          python3 -m pip install mmw-0.1.0-py3-none-any.whl
 
       - name: Verify Python binding
-        run: python3 -c "import mmw_python; print('Python binding imported successfully'); print('Available functions:', dir(mmw_python))"
+        run: python3 -c "import mmw; print('Python binding imported successfully'); print('Available functions:', dir(mmw))"

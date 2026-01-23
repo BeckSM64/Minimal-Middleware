@@ -1,3 +1,6 @@
+#ifndef MMW_H
+#define MMW_H
+
 #ifdef __cplusplus
 #include <cstddef>
 extern "C" {
@@ -71,7 +74,7 @@ MmwResult mmw_create_publisher(const char* topic);
  * @param mmw_callback Callback function that receives the message as a string.
  * @return MMW_OK on success, MMW_ERROR on failure.
  */
-MmwResult mmw_create_subscriber(const char* topic, void (*mmw_callback)(const char*));
+MmwResult mmw_create_subscriber(const char* topic, void (*mmw_callback)(const char*, const char*));
 
 /**
  * @brief Create a subscriber for a topic (raw byte messages).
@@ -82,7 +85,7 @@ MmwResult mmw_create_subscriber(const char* topic, void (*mmw_callback)(const ch
  * @param mmw_callback Callback function that receives the raw message data.
  * @return MMW_OK on success, MMW_ERROR on failure.
  */
-MmwResult mmw_create_subscriber_raw(const char* topic, void (*mmw_callback)(void*));
+MmwResult mmw_create_subscriber_raw(const char* topic, void (*mmw_callback)(const char*, void*));
 
 /**
  * @brief Publish a message as a string.
@@ -108,6 +111,26 @@ MmwResult mmw_publish(const char* topic, const char* message, MmwReliability rel
 MmwResult mmw_publish_raw(const char* topic, void* message, size_t size, MmwReliability reliability);
 
 /**
+ * @brief Delete publisher.
+ *
+ * Destroys a singular publisher for a specified topic.
+ *
+ * @param topic The topic name.
+ * @return MMW_OK on success, MMW_ERROR on failure.
+ */
+MmwResult mmw_delete_publisher(const char* topic);
+
+/**
+ * @brief Delete subscriber.
+ *
+ * Destroys a singular subscriber for a specified topic.
+ *
+ * @param topic The topic name.
+ * @return MMW_OK on success, MMW_ERROR on failure.
+ */
+MmwResult mmw_delete_subscriber(const char* topic);
+
+/**
  * @brief Clean up all middleware resources.
  *
  * Destroys all publishers and subscribers and releases internal memory.
@@ -119,3 +142,5 @@ MmwResult mmw_cleanup();
 #ifdef __cplusplus
 }
 #endif
+
+#endif /* MMW_H */

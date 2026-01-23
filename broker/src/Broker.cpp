@@ -93,7 +93,7 @@ void routeMessageToSubscribers(const std::string& topic, const MmwMessage& msg) 
                 ),
                 connectedClientList.end()
             );
-            close(fd);
+            SocketAbstraction::SocketClose(fd);
         
         // Only track unacked messages if reliability was set
         } else if (msg.reliability) {
@@ -206,7 +206,7 @@ void handleClient(int client_fd) {
         }
     }
 
-    close(client_fd);
+    SocketAbstraction::SocketClose(client_fd);
     removeClientByFd(client_fd);
     spdlog::info("Client disconnected (fd={})", client_fd);
 }
@@ -215,7 +215,7 @@ void handleSignal(int signum) {
     spdlog::info("Signal received ({}), shutting down broker...", signum);
     running = false;
     if (server_fd != -1) {
-        close(server_fd);
+        SocketAbstraction::SocketClose(server_fd);
         server_fd = -1;
     }
 }
@@ -284,7 +284,7 @@ int main(int argc, char *argv[]) {
                 if (it->type == "subscriber" &&
                     std::chrono::duration_cast<std::chrono::milliseconds>(now - it->lastHeartbeat).count() > TIMEOUT_MS) {
                     spdlog::warn("Subscriber fd={} timed out, removing", it->socket_fd);
-                    close(it->socket_fd);
+                    SocketAbstraction::SocketClose(it->socket_fd);
                     it = connectedClientList.erase(it);
                 } else {
                     ++it;
@@ -331,7 +331,7 @@ int main(int argc, char *argv[]) {
 
                 for (int fd : fdsToRemove) {
                     unackedMessages.erase(fd);
-                    close(fd);
+                    SocketAbstraction::SocketClose(fd);
                     removeClientByFd(fd);
                 }
             }
@@ -383,14 +383,14 @@ int main(int argc, char *argv[]) {
         std::lock_guard<std::mutex> lock(clientListMutex);
         for (auto& c : connectedClientList) {
             if (c.socket_fd != -1) {
-                close(c.socket_fd);
+                SocketAbstraction::SocketClose(c.socket_fd);
             }
         }
         connectedClientList.clear();
     }
 
     if (server_fd != -1) {
-        close(server_fd);
+        SocketAbstraction::SocketClose(server_fd);
         server_fd = -1;
     }
 
