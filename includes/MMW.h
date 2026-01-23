@@ -1,3 +1,6 @@
+#ifndef MMW_H
+#define MMW_H
+
 #ifdef __cplusplus
 #include <cstddef>
 extern "C" {
@@ -119,3 +122,5 @@ MmwResult mmw_cleanup();
 #ifdef __cplusplus
 }
 #endif
+
+#endif /* MMW_H */
