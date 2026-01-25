@@ -12,12 +12,12 @@ author = 'Shane Harrington'
 release = 'v2.0.0'
 
 # Add these extensions
-# extensions = [
-#     "sphinx.ext.autodoc",  # Python API
-#     "sphinx.ext.napoleon", # Google / NumPy style docstrings
-#     "breathe",             # C++ API via Doxygen
-#     "exhale"               # auto-generate C++ API pages
-# ]
+extensions = [
+    "sphinx.ext.autodoc",  # Python API
+    "sphinx.ext.napoleon", # Google / NumPy style docstrings
+    "breathe",             # C++ API via Doxygen
+    "exhale"               # auto-generate C++ API pages
+]
 
 # HTML theme
 html_theme = "sphinx_rtd_theme"
@@ -27,10 +27,10 @@ breathe_projects = { "MMW": "../doxygen/xml" }
 breathe_default_project = "MMW"
 
 # Exhale config (C++ API layout)
-# exhale_args = {
-#     "containmentFolder": "./api/cpp",
-#     "rootFileName": "index.rst",
-#     "rootFileTitle": "C++ API Reference",
-#     "doxygenStripFromPath": "..",
-#     "createTreeView": True,
-# }
+exhale_args = {
+    "containmentFolder": "./api/cpp",
+    "rootFileName": "index.rst",
+    "rootFileTitle": "C++ API Reference",
+    "doxygenStripFromPath": "..",
+    "createTreeView": True,
+}

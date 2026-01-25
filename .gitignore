@@ -7,3 +7,7 @@ dist/
 *.so
 __pycache__/
 *.pyd
+docs/build/
+docs/doxygen/
+docs/source/api/cpp/
+latex/

@@ -12,4 +12,4 @@ MMW Documentation
 
    getting_started/quickstart
    guides/pub_sub
-   api/index
+   api/cpp/index
