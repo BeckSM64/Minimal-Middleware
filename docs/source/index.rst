@@ -11,5 +11,6 @@ MMW Documentation
    :caption: Contents
 
    getting_started/quickstart
+   getting_started/building
    guides/pub_sub
    api/cpp/index

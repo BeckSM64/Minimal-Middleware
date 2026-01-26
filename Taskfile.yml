@@ -1,0 +1,18 @@
+version: "3"
+
+tasks:
+  docs:
+    desc: Build Doxygen + Sphinx documentation
+    cmds:
+      - doxygen docs/Doxyfile
+      - task: sphinx
+
+  sphinx:
+    cmds:
+      - cd docs && python -m sphinx -b html source build/html
+
+  docs:clean:
+    desc: Clean generated documentation
+    cmds:
+      - rm -rf docs/build
+      - rm -rf docs/doxygen/xml
