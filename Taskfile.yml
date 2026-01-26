@@ -4,7 +4,7 @@ tasks:
   docs:
     desc: Build Doxygen + Sphinx documentation
     cmds:
-      - doxygen docs/Doxyfile
+      - doxygen Doxyfile
       - task: sphinx
 
   sphinx:
