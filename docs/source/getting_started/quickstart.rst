@@ -1,90 +1,122 @@
 Quickstart
 ==========
 
-This guide will get you publishing and subscribing with MMW in both C++ and Python.
+This guide shows the minimal steps required to publish and subscribe to messages
+using MMW from both C++ and Python.
+
+MMW follows a simple lifecycle:
+
+1. Initialize the runtime
+2. Create publishers and subscribers
+3. Send and receive messages
+4. Clean up on shutdown
 
 Initialize
 ----------
 
-Before sending messages, you must initialize the MMW runtime.
+The MMW runtime must be initialized before any publishers or subscribers
+are created.
 
 **C++**
+
 ::
 
     #include "MMW.h"
 
     if (mmw_initialize("127.0.0.1", 5000) != MMW_OK) {
-        // handle error
+        // initialization failed
     }
 
 **Python**
+
 ::
 
     import mmw
 
     mmw.initialize("127.0.0.1", 5000)
 
-Create Publisher
-----------------
+Create a Publisher
+------------------
 
-Publish messages to a topic.
+Publishers are associated with a topic. Creating a publisher does not send
+any messages by itself.
 
 **C++**
+
 ::
 
     mmw_create_publisher("example_topic");
 
 **Python**
+
 ::
 
     mmw.create_publisher("example_topic")
 
-Publish Message
----------------
+Publish a Message
+-----------------
+
+Messages are sent to a topic with an explicit reliability mode.
 
 **C++**
+
 ::
 
-    mmw_publish("example_topic", "Hello World", MMW_BEST_EFFORT);
+    mmw_publish(
+        "example_topic",
+        "Hello World",
+        MMW_BEST_EFFORT
+    );
 
 **Python**
+
 ::
 
-    mmw.publish("example_topic", "Hello World", mmw.MmwReliability.MMW_BEST_EFFORT)
+    mmw.publish(
+        "example_topic",
+        "Hello World",
+        mmw.MmwReliability.MMW_BEST_EFFORT
+    )
 
-Subscribe to Topic
-------------------
+Create a Subscriber
+-------------------
 
-Receive messages from a topic.
+Subscribers register a callback that is invoked when a message is received.
 
 **C++**
+
 ::
 
-    void callback(const char* topic, const char* message) {
+    void on_message(const char* topic, const char* message)
+    {
         // handle message
     }
 
-    mmw_create_subscriber("example_topic", callback);
+    mmw_create_subscriber("example_topic", on_message);
 
 **Python**
+
 ::
 
-    def callback(topic, message):
+    def on_message(topic, message):
         # handle message
+        pass
 
-    sub = mmw.create_subscriber("example_topic", callback)
+    mmw.create_subscriber("example_topic", on_message)
 
-Cleanup
--------
+Shutdown
+--------
 
-Always clean up before exiting.
+All resources must be released before program exit.
 
 **C++**
+
 ::
 
     mmw_cleanup();
 
 **Python**
+
 ::
 
     mmw.cleanup()
