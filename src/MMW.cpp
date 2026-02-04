@@ -66,6 +66,7 @@ void mmw_set_log_level(MmwLogLevel level) {
             break;
         default:
             spdlog::set_level(spdlog::level::off);
+            spdlog::drop_all(); // remove all sinks
             break;
     }
 }
