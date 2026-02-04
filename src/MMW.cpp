@@ -37,7 +37,7 @@ inline MmwResult sendMessage(int sock_fd, const std::string& data) {
         spdlog::error("Failed to send message to broker");
         return MMW_ERROR;
     }
-    if (SocketAbstraction::Send(sock_fd, data.data(), data.size(), 0) != (size_t)data.size()) {
+    if (SocketAbstraction::Send(sock_fd, data.data(), data.size(), 0) != (ssize_t)data.size()) {
         spdlog::error("Failed to send message to broker");
         return MMW_ERROR;
     }
