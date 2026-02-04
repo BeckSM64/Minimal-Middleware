@@ -7,6 +7,7 @@
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/basic_file_sink.h>
 #include <fcntl.h>
+#include <queue>
 
 #include "MMW.h"
 #include "IMmwMessageSerializer.h"
@@ -24,6 +25,38 @@ static std::vector<std::thread> subscriberThreads;
 static std::vector<std::atomic<bool>*> subscriberRunFlags;
 static IMmwMessageSerializer* g_serializer = nullptr;
 
+// Async publisher state
+struct PublisherState {
+    std::queue<std::string> msgQueue;
+    std::mutex queueMutex;
+    std::condition_variable queueCv;
+    std::atomic<bool> running{true};
+    std::thread sendThread;
+};
+
+static std::map<std::string, PublisherState*> publisherStates;
+static std::mutex publisherStatesMutex;
+
+// Worker function for async publishing
+void publisherWorker(int sock_fd, PublisherState* state) {
+    while (state->running) {
+        std::unique_lock<std::mutex> lock(state->queueMutex);
+        if (state->msgQueue.empty()) {
+            state->queueCv.wait_for(lock, std::chrono::milliseconds(50));
+        }
+        while (!state->msgQueue.empty()) {
+            std::string data = state->msgQueue.front();
+            state->msgQueue.pop();
+            lock.unlock();
+
+            uint32_t len = htonl(data.size());
+            SocketAbstraction::Send(sock_fd, &len, sizeof(len), 0);
+            SocketAbstraction::Send(sock_fd, data.data(), data.size(), 0);
+
+            lock.lock();
+        }
+    }
+}
 
 /**
  * Helper function to send a length-prefixed message
@@ -134,6 +167,15 @@ MmwResult mmw_create_publisher(const char* topic) {
     }
 
     spdlog::info("Publisher connected to broker at {}:{}", hostname, brokerPort);
+
+    // Create async state and worker thread
+    auto state = new PublisherState();
+    state->sendThread = std::thread(publisherWorker, sock_fd, state);
+    {
+        std::lock_guard<std::mutex> lock(publisherStatesMutex);
+        publisherStates[topic] = state;
+    }
+
     return MMW_OK;
 }
 
@@ -279,10 +321,18 @@ MmwResult mmw_publish(const char* topic, const char* payload, MmwReliability rel
     msg.reliability = reliability;
 
     try {
-        if (sendMessage(sock_fd, g_serializer->serialize(msg)) == MMW_ERROR) {
-            spdlog::error("Failed to send message on topic {}", topic);
-            return MMW_ERROR;
+        std::string data = g_serializer->serialize(msg); // or serialize_raw(msg)
+        std::lock_guard<std::mutex> lock(publisherStatesMutex);
+        auto it = publisherStates.find(topic);
+        if (it == publisherStates.end()) return MMW_ERROR;
+
+        {
+            std::lock_guard<std::mutex> qlock(it->second->queueMutex);
+            it->second->msgQueue.push(data);
         }
+        it->second->queueCv.notify_one();
+        return MMW_OK;
+
     } catch (const std::exception& e) {
         spdlog::error("Publish serialization failed on topic {}: {}", topic, e.what());
         return MMW_ERROR;
@@ -331,6 +381,20 @@ MmwResult mmw_delete_publisher(const char* topic) {
     }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
+
+    {
+        std::lock_guard<std::mutex> lock(publisherStatesMutex);
+        auto itState = publisherStates.find(topic);
+        if (itState != publisherStates.end()) {
+            itState->second->running = false;
+            itState->second->queueCv.notify_all();
+            if (itState->second->sendThread.joinable())
+                itState->second->sendThread.join();
+            delete itState->second;
+            publisherStates.erase(itState);
+        }
+    }
+
     SocketAbstraction::SocketClose(sock_fd);
 
     publisherTopicToSocketFdMap.erase(it);
@@ -383,6 +447,19 @@ MmwResult mmw_cleanup() {
             spdlog::info("Publisher socket closed for topic: {}", pair.first);
         }
     }
+
+    {
+        std::lock_guard<std::mutex> lock(publisherStatesMutex);
+        for (auto& pair : publisherStates) {
+            pair.second->running = false;
+            pair.second->queueCv.notify_all();
+            if (pair.second->sendThread.joinable())
+                pair.second->sendThread.join();
+            delete pair.second;
+        }
+        publisherStates.clear();
+    }
+
     publisherTopicToSocketFdMap.clear();
 
     // Close subscriber sockets
