@@ -177,9 +177,9 @@ void handleClient(int client_fd) {
                 msg.messageId = brokerMessageId++;
 
                 // Write message to sqlite database for persistence
-                if (!g_persistence->persistMessage(msg)) {
-                    spdlog::warn("Failed to persist message {}", msg.messageId);
-                }
+                // if (!g_persistence->persistMessage(msg)) {
+                //     spdlog::warn("Failed to persist message {}", msg.messageId);
+                // }
 
                 routeMessageToSubscribers(msg.topic, msg);
 
