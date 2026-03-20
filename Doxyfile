@@ -1,0 +1,15 @@
+# Where your source code is
+INPUT = src includes
+
+# Output folder for Doxygen
+OUTPUT_DIRECTORY = docs/doxygen
+
+# Generate XML for Sphinx (Breathe/Exhale)
+GENERATE_XML = YES
+
+# Optional: generate HTML too
+GENERATE_HTML = YES
+
+# Strip paths for nicer references
+FULL_PATH_NAMES = NO
+STRIP_FROM_PATH = src
