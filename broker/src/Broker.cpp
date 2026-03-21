@@ -47,18 +47,29 @@ static std::atomic<uint32_t> brokerMessageId{1}; // start at 1
 
 static BrokerPersistence* g_persistence = nullptr;
 
+static std::map<int, std::mutex> socketSendMutexes;
+static std::mutex socketSendMutexMapLock;
+
 // Send a length-prefixed message
 inline bool sendMessage(int sock_fd, const std::string& data) {
+    std::mutex* mtx;
+    {
+        std::lock_guard<std::mutex> lock(socketSendMutexMapLock);
+        mtx = &socketSendMutexes[sock_fd];
+    }
 
-    SocketAbstraction::SocketStartup();
+    std::lock_guard<std::mutex> lock(*mtx);
 
     uint32_t len = htonl(data.size());
+
     if (SocketAbstraction::Send(sock_fd, &len, sizeof(len), 0) != sizeof(len)) {
         return false;
     }
+
     if (SocketAbstraction::Send(sock_fd, data.data(), data.size(), 0) != (ssize_t)data.size()) {
         return false;
     }
+
     return true;
 }
 

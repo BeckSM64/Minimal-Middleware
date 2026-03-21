@@ -23,24 +23,32 @@ static std::mutex socketListMutex;
 static std::vector<std::thread> subscriberThreads;
 static std::vector<std::atomic<bool>*> subscriberRunFlags;
 static IMmwMessageSerializer* g_serializer = nullptr;
+static std::map<int, std::mutex> socketSendMutexes;
+static std::mutex socketSendMutexMapLock;
 
 
 /**
  * Helper function to send a length-prefixed message
  */
 inline MmwResult sendMessage(int sock_fd, const std::string& data) {
+    std::mutex* mtx;
+    {
+        std::lock_guard<std::mutex> lock(socketSendMutexMapLock);
+        mtx = &socketSendMutexes[sock_fd];
+    }
 
-    SocketAbstraction::SocketStartup();
+    std::lock_guard<std::mutex> lock(*mtx);
 
     uint32_t len = htonl(data.size());
+
     if (SocketAbstraction::Send(sock_fd, &len, sizeof(len), 0) != sizeof(len)) {
-        spdlog::error("Failed to send message to broker");
         return MMW_ERROR;
     }
-    if (SocketAbstraction::Send(sock_fd, data.data(), data.size(), 0) != (size_t)data.size()) {
-        spdlog::error("Failed to send message to broker");
+
+    if (SocketAbstraction::Send(sock_fd, data.data(), data.size(), 0) != (ssize_t)data.size()) {
         return MMW_ERROR;
     }
+
     return MMW_OK;
 }
 
@@ -88,6 +96,7 @@ MmwResult mmw_initialize(const char* brokerIp, unsigned short port) {
         return MMW_ERROR;
     }
 
+    SocketAbstraction::SocketStartup();
     return MMW_OK;
 }
 
@@ -146,6 +155,10 @@ void subscriberThreadFunc(int sock_fd, std::atomic<bool>* runningFlag, Subscribe
         }
 
         uint32_t msgLen = ntohl(netLen);
+        if (msgLen > 1024 * 1024) { // 1MB sanity limit
+            spdlog::error("Received message too large: {} bytes", msgLen);
+            break;
+        }
         if (msgLen == 0) {
             continue;
         }
