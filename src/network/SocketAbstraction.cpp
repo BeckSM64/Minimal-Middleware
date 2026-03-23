@@ -59,17 +59,39 @@ int SocketAbstraction::SocketCleanup() {
 }
 
 int SocketAbstraction::Send(int s, const void* buf, int32_t len, int32_t flags) {
+    const char* ptr = (const char*)buf;
+    int32_t totalSent = 0;
+
+    while (totalSent < len) {
     #ifdef __linux__
-        return send(s, (const char*) buf, len, flags | MSG_NOSIGNAL);
+        int n = send(s, ptr + totalSent, len - totalSent, flags | MSG_NOSIGNAL);
     #elif _WIN32
-        return send(s, (const char*) buf, len, flags);
-    #else
-        #error "Unsupported platform"
+        int n = send(s, ptr + totalSent, len - totalSent, flags);
     #endif
+
+        if (n <= 0) {
+            return n; // error or disconnect
+        }
+
+        totalSent += n;
+    }
+
+    return totalSent;
 }
 
 int SocketAbstraction::Recv(int s, void* buf, int32_t len, int32_t flags) {
-    return recv(s, (char*) buf, len, flags);
+    char* ptr = (char*)buf;
+    int32_t totalRecv = 0;
+
+    while (totalRecv < len) {
+        int n = recv(s, ptr + totalRecv, len - totalRecv, flags);
+        if (n <= 0) {
+            return n; // error or disconnect
+        }
+        totalRecv += n;
+    }
+
+    return totalRecv;
 }
 
 int SocketAbstraction::InetPtonAbstraction(int family, const char* pszAddrString, void* pAddrBuf) {
