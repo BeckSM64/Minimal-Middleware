@@ -28,15 +28,18 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(spdlog)
 
 # Fetch pybind11
-set(PYBIND11_FINDPYTHON NEW CACHE STRING "")
-set(PYBIND11_PYTHON_VERSION 3.12 CACHE STRING "")
-set(_Python_EXECUTABLE_DEBUG "" CACHE FILEPATH "Suppress debug executable error")
-FetchContent_Declare(
-    pybind11
-    GIT_REPOSITORY https://github.com/pybind/pybind11.git
-    GIT_TAG v3.0.1
-)
-FetchContent_MakeAvailable(pybind11)
+if(BUILD_PYTHON_MODULE)
+    set(PYBIND11_FINDPYTHON NEW CACHE STRING "")
+    set(PYBIND11_PYTHON_VERSION 3.12 CACHE STRING "")
+    set(_Python_EXECUTABLE_DEBUG "" CACHE FILEPATH "Suppress debug executable error")
+
+    FetchContent_Declare(
+        pybind11
+        GIT_REPOSITORY https://github.com/pybind/pybind11.git
+        GIT_TAG v3.0.1
+    )
+    FetchContent_MakeAvailable(pybind11)
+endif()
 
 # Fetch Cereal
 set(CEREAL_USE_BOOST OFF CACHE BOOL "" FORCE)
