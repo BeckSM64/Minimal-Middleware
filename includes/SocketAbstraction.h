@@ -1,7 +1,7 @@
 #ifndef SOCKET_ABSTRACTION_H
 #define SOCKET_ABSTRACTION_H
 
-#if defined(__linux__) || defined(__APPLE__)
+#if defined(__linux__) || defined(__APPLE__) || defined(__EMSCRIPTEN__)
     #include <arpa/inet.h>
     #include <sys/socket.h>
     #include <unistd.h>
