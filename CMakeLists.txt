@@ -63,11 +63,6 @@ else()
     set(SERIALIZER_SRC ${CMAKE_CURRENT_LIST_DIR}/src/serialization/CerealSerializer.cpp)
 endif()
 
-# Build a shared lib if we're building a Python whl
-if(BUILD_PYTHON_MODULE)
-    option(BUILD_SHARED_LIBS "Build as shared library" ON)
-endif()
-
 # Create the mw library
 add_library(
     mmw
