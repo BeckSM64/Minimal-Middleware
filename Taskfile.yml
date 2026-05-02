@@ -8,26 +8,52 @@ tasks:
       - mkdir -p build/
       - cd build/ && cmake ../ && make
 
-  build:broker:
+  build:linux:broker:
     desc: Build the MMW library with the broker
     cmds:
       - mkdir -p build/
       - cd build/ && cmake ../ -DBUILD_BROKER=ON && make
 
-  build:example:
+  build:win:broker:
+    desc: Build the MMW library with the broker
+    cmds:
+      - mkdir -p build/
+      - cd build/ && cmake ../ -DBUILD_BROKER=ON -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake && make
+
+  build:linux:example:
     desc: Build the MMW library with the broker and sample apps
     cmds:
       - mkdir -p build/
       - cd build/ && cmake ../ -DBUILD_BROKER=ON -DBUILD_SAMPLE_APPS=ON && make
 
-  build:python:
+  build:win:example:
+    desc: Build the MMW library with the broker and sample apps on Windows
+    cmds:
+      - mkdir -p build/
+      - cd build/ && cmake ../ -DBUILD_BROKER=ON -DBUILD_SAMPLE_APPS=ON -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -G "Unix Makefiles" && make
+
+  build:linux:python:
     desc: Build the MMW library with the Python language binding
     cmds:
       - mkdir -p build/
       - cd build/ && cmake ../ -DBUILD_BROKER=ON -DBUILD_PYTHON_MODULE=ON && make
       - cd ./python && python3 -m pip install -r ../requirements.txt && python3 -m build && python3 -m pip install dist/*.whl
 
-  build:all:
+  build:win:python:
+    desc: Build the MMW library with the Python language binding
+    cmds:
+      - mkdir -p build/
+      - cd build/ && cmake ../ -DBUILD_BROKER=ON -DBUILD_SAMPLE_APPS=ON -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DBUILD_PYTHON_MODULE=ON -G "Unix Makefiles" && make -j
+      # - cd ./python && python -m pip install -r ../requirements.txt && python -m build . --wheel && python -m pip install dist/*.whl
+
+  build:linux:all:
+    desc: Build the MMW library with the broker, sample apps, and Python language binding
+    cmds:
+      - mkdir -p build/
+      - cd build/ && cmake ../ -DBUILD_BROKER=ON -DBUILD_SAMPLE_APPS=ON -DBUILD_PYTHON_MODULE=ON && make
+      - cd ./python && python3 -m pip install -r ../requirements.txt && python3 -m build && python3 -m pip install dist/*.whl
+
+  build:win:all:
     desc: Build the MMW library with the broker, sample apps, and Python language binding
     cmds:
       - mkdir -p build/
