@@ -1,1 +1,1 @@
-from ._mmw import *
+from .mmw import *

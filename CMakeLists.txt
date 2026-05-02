@@ -63,15 +63,8 @@ else()
     set(SERIALIZER_SRC ${CMAKE_CURRENT_LIST_DIR}/src/serialization/CerealSerializer.cpp)
 endif()
 
-# Build a static lib if we're building a Python whl on Windows
-# to keep everything in one self contained installable
+# Build a shared lib if we're building a Python whl
 if(BUILD_PYTHON_MODULE)
-    if(WIN32)
-        option(BUILD_SHARED_LIBS "Build as shared library" OFF)
-    else()
-        option(BUILD_SHARED_LIBS "Build as shared library" ON)
-    endif()
-else()
     option(BUILD_SHARED_LIBS "Build as shared library" ON)
 endif()
 
