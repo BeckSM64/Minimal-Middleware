@@ -7,7 +7,7 @@ Requirements
 * C++11 compiler
 * CMake >= 3.0
 * Python >= 3.11 (optional, for Python bindings)
-* Supported OS: Linux, Windows
+* Supported OS: Linux, Windows, MacOS
 
 Building the Core Library
 -------------------------
@@ -41,16 +41,13 @@ The Python bindings are optional and require Python 3.11 or newer.
 Static vs Shared Builds
 -----------------------
 
-MMW builds as a shared library by default.
+MMW builds as a static library by default.
 
-When building the Python bindings on Windows, the library is forced to build
-statically to avoid DLL resolution issues inside the generated wheel.
-
-To explicitly disable shared library builds, pass the following option to CMake:
+To explicitly enable shared library builds, pass the following option to CMake:
 
 .. code-block:: bash
 
-   -DBUILD_SHARED_LIBRARY=OFF
+   -DBUILD_SHARED_LIBRARY=ON
 
 Troubleshooting
 ---------------
