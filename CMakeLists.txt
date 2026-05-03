@@ -130,11 +130,6 @@ if(BUILD_SAMPLE_APPS)
     target_link_libraries(subscribe_c PRIVATE mmw pthread)
     target_link_libraries(publish_raw PRIVATE mmw pthread)
     target_link_libraries(subscribe_raw PRIVATE mmw pthread)
-
-    # Copy config if it exists
-    if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/config/config.yml")
-        file(COPY "${CMAKE_CURRENT_LIST_DIR}/config/config.yml" DESTINATION "${CMAKE_CURRENT_LIST_DIR}/build/")
-    endif()
 endif()
 
 # Build Python module if requested
