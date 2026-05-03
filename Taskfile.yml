@@ -6,6 +6,7 @@ vars:
   EXAMPLES: '{{.EXAMPLES | default "OFF"}}'
   PYTHON: '{{.PYTHON | default "OFF"}}'
   SERIALIZER: '{{.SERIALIZER | default "CEREAL_SERIALIZER"}}'
+  SHARED: '{{.SHARED | default "OFF"}}'
   # Platform detection logic
   PYTHON_EXE: '{{if eq OS "windows"}}python{{else}}python3{{end}}'
   VCPKG_PATH: 'C:/vcpkg/scripts/buildsystems/vcpkg.cmake'
@@ -41,6 +42,7 @@ tasks:
         -DBUILD_SAMPLE_APPS={{.EXAMPLES}}
         -DBUILD_PYTHON_MODULE={{.PYTHON}}
         -D{{.SERIALIZER}}=ON
+        -DBUILD_SHARED_LIBRARY={{.SHARED}}
         {{if eq OS "windows"}}
         -DCMAKE_TOOLCHAIN_FILE={{.VCPKG_PATH}} 
         -G "Unix Makefiles"

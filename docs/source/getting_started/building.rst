@@ -5,49 +5,66 @@ Requirements
 ------------
 
 * C++11 compiler
-* CMake >= 3.0
+* CMake >= 3.5
 * Python >= 3.11 (optional, for Python bindings)
 * Supported OS: Linux, Windows, MacOS
 
 Building the Core Library
 -------------------------
 
+The library can be built using task
+
 .. code-block:: bash
 
    git clone https://github.com/BeckSM64/Minimal-Middleware.git
    cd Minimal-Middleware
-   mkdir build && cd build
-   cmake .. -DBUILD_BROKER=ON -DBUILD_SAMPLE_APPS=ON -DBUILD_PYTHON_MODULE=ON
-   make
+   task build
 
-On Windows, MinGW is supported. When using MinGW, invoke CMake with:
+This will build the core library. There are several variations to this build which can be made by passing various arguments to the task command
 
 .. code-block:: bash
 
-   -G "Unix Makefiles"
+   task build BROKER=ON EXAMPLES=ON PYTHON=ON SERIALIZER=JSON_SERIALIZER
+
+If you just want to build everything, you can run the following
+
+.. code-block:: bash
+
+   task build:all
 
 Building the Python Bindings
 ----------------------------
 
-The Python bindings are optional and require Python 3.11 or newer.
+The Python bindings are optional and require Python 3.11 or newer. They will be built when you run the build all command, or you can explicitly build them with the following
 
 .. code-block:: bash
 
-   cd Minimal-Middleware/python
-   python3 -m pip install -r requirements.txt
-   python3 -m build
-   python3 -m pip install dist/*.whl
+   task build PYTHON=ON
+
+This will build and install the Python whl on any supported platform (ie. Windows, Linux, and MacOS)
 
 Static vs Shared Builds
 -----------------------
 
 MMW builds as a static library by default.
 
-To explicitly enable shared library builds, pass the following option to CMake:
+To explicitly enable shared library builds, pass the following option to task:
 
 .. code-block:: bash
 
-   -DBUILD_SHARED_LIBRARY=ON
+   build SHARED=ON
+
+Note that this may cause issues when building the whl for Python bindings. If you really want a shared library with the whl, you'll need to run the following on Linux and MacOS
+
+.. code-block:: bash
+
+   python3 -m pip auditwheel repair /path/to/whl.whl --add-path /path/to/shared/libraries/
+
+and this on Windows
+
+.. code-block:: bash
+
+   python -m pip delvewheel repair /path/to/whl.whl --add-path /path/to/shared/libraries/
 
 Troubleshooting
 ---------------
@@ -62,7 +79,7 @@ Example:
 
 .. code-block:: bash
 
-   -DCMAKE_TOOLCHAIN_FILE=C:/path/to/vcpkg/scripts/buildsystems/vcpkg.cmake
+   task build VCPKG_PATH='C:/path/to/vcpkg/scripts/buildsystems/vcpkg.cmake'
 
 Dependencies
 ~~~~~~~~~~~~
