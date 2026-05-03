@@ -1,82 +1,83 @@
-version: "3"
+version: '3'
+
+vars:
+  # Defaults
+  BROKER: '{{.BROKER | default "OFF"}}'
+  EXAMPLES: '{{.EXAMPLES | default "OFF"}}'
+  PYTHON: '{{.PYTHON | default "OFF"}}'
+  SERIALIZER: '{{.SERIALIZER | default "CEREAL_SERIALIZER"}}'
+  # Platform detection logic
+  PYTHON_EXE: '{{if eq OS "windows"}}python{{else}}python3{{end}}'
+  VCPKG_PATH: 'C:/vcpkg/scripts/buildsystems/vcpkg.cmake'
 
 tasks:
+  default:
+    cmds:
+      - task: build
+
+  build:all:
+    desc: Build everything
+    cmds:
+      - task: build
+        vars: { BROKER: ON, EXAMPLES: ON, PYTHON: ON }
 
   build:
-    desc: Build the MMW library
+    desc: Build MMW with optional flags
     cmds:
-      - mkdir -p build/
-      - cd build/ && cmake ../ && make
+      - task: cmake:configure
+      - task: cmake:build
+      - task: python:install
+        vars: { PYTHON: '{{.PYTHON}}' }
 
-  build:linux:broker:
-    desc: Build the MMW library with the broker
-    cmds:
-      - mkdir -p build/
-      - cd build/ && cmake ../ -DBUILD_BROKER=ON && make
+  # --- Internal Helper Tasks ---
 
-  build:win:broker:
-    desc: Build the MMW library with the broker
+  cmake:configure:
+    internal: true
     cmds:
       - mkdir -p build/
-      - cd build/ && cmake ../ -DBUILD_BROKER=ON -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake && make
+      - >
+        cmake -S . -B build/
+        -DBUILD_BROKER={{.BROKER}}
+        -DBUILD_SAMPLE_APPS={{.EXAMPLES}}
+        -DBUILD_PYTHON_MODULE={{.PYTHON}}
+        -D{{.SERIALIZER}}=ON
+        {{if eq OS "windows"}}
+        -DCMAKE_TOOLCHAIN_FILE={{.VCPKG_PATH}} 
+        -G "Unix Makefiles"
+        {{end}}
 
-  build:linux:example:
-    desc: Build the MMW library with the broker and sample apps
+  cmake:build:
+    internal: true
     cmds:
-      - mkdir -p build/
-      - cd build/ && cmake ../ -DBUILD_BROKER=ON -DBUILD_SAMPLE_APPS=ON && make
+      - cmake --build build/ --config Release -j
 
-  build:win:example:
-    desc: Build the MMW library with the broker and sample apps on Windows
+  python:install:
+    internal: true
+    dir: python
+    # This 'run: once' prevents double-running if called multiple times
+    # The 'status' check skips the task if PYTHON is not ON
+    status:
+      - test "{{.PYTHON}}" != "ON"
     cmds:
-      - mkdir -p build/
-      - cd build/ && cmake ../ -DBUILD_BROKER=ON -DBUILD_SAMPLE_APPS=ON -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -G "Unix Makefiles" && make
-
-  build:linux:python:
-    desc: Build the MMW library with the Python language binding
-    cmds:
-      - mkdir -p build/
-      - cd build/ && cmake ../ -DBUILD_BROKER=ON -DBUILD_PYTHON_MODULE=ON && make
-      - cd ./python && python3 -m pip install -r ../requirements.txt && python3 -m build && python3 -m pip install dist/*.whl
-
-  build:win:python:
-    desc: Build the MMW library with the Python language binding
-    cmds:
-      - mkdir -p build/
-      - cd build/ && cmake ../ -DBUILD_BROKER=ON -DBUILD_SAMPLE_APPS=ON -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DBUILD_PYTHON_MODULE=ON -G "Unix Makefiles" && make -j
-      - cd ./python && python -m pip install -r ../requirements.txt && python -m build . --wheel && python -m pip install dist/*.whl --force-reinstall
-
-  build:linux:all:
-    desc: Build the MMW library with the broker, sample apps, and Python language binding
-    cmds:
-      - mkdir -p build/
-      - cd build/ && cmake ../ -DBUILD_BROKER=ON -DBUILD_SAMPLE_APPS=ON -DBUILD_PYTHON_MODULE=ON && make
-      - cd ./python && python3 -m pip install -r ../requirements.txt && python3 -m build && python3 -m pip install dist/*.whl
-
-  build:win:all:
-    desc: Build the MMW library with the broker, sample apps, and Python language binding
-    cmds:
-      - mkdir -p build/
-      - cd build/ && cmake ../ -DBUILD_BROKER=ON -DBUILD_SAMPLE_APPS=ON -DBUILD_PYTHON_MODULE=ON && make
-      - cd ./python && python3 -m pip install -r ../requirements.txt && python3 -m build && python3 -m pip install dist/*.whl
+      - "{{.PYTHON_EXE}} -m pip install -r ../requirements.txt"
+      - "{{.PYTHON_EXE}} -m build ."
+      - "{{.PYTHON_EXE}} -m pip install dist/*.whl --force-reinstall"
 
   clean:
-    desc: Clean the build directory
+    desc: Clean build artifacts
     cmds:
       - rm -rf build/
+      - rm -rf python/dist/
+      - rm -rf python/build/
+      - rm -rf python/mmw.egg-info
 
   docs:
     desc: Build Doxygen + Sphinx documentation
     cmds:
       - doxygen Doxyfile
-      - task: sphinx
-
-  sphinx:
-    cmds:
-      - cd docs && python -m sphinx -b html source build/html
+      - cd docs && {{.PYTHON_EXE}} -m sphinx -b html source build/html
 
   docs:clean:
-    desc: Clean generated documentation
+    desc: Clean documentation
     cmds:
-      - rm -rf docs/build
-      - rm -rf docs/doxygen/xml
+      - rm -rf docs/build docs/doxygen/xml
