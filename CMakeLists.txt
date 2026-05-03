@@ -139,6 +139,7 @@ endif()
 
 # Build Python module if requested
 if(BUILD_PYTHON_MODULE)
+    set_property(TARGET mmw PROPERTY POSITION_INDEPENDENT_CODE ON)
     pybind11_add_module(_mmw_module python/Bindings.cpp)
     target_include_directories(_mmw_module PRIVATE 
         ${CMAKE_CURRENT_LIST_DIR}/ 
