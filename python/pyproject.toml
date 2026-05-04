@@ -12,4 +12,4 @@ packages = ["mmw"]
 package-dir = { "mmw" = "mmw" }
 
 [tool.setuptools.package-data]
-mmw = ["*.dll", "*.pyd"]
+mmw = ["*.so", "*.dll", "*.pyd"]
