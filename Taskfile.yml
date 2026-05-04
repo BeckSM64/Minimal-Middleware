@@ -26,6 +26,7 @@ tasks:
     desc: Build MMW with optional flags
     cmds:
       - task: cmake:configure
+        vars: { BROKER: "{{.BROKER}}", EXAMPLES: "{{.EXAMPLES}}", PYTHON: "{{.PYTHON}}" }
       - task: cmake:build
       - task: python:install
         vars: { PYTHON: '{{.PYTHON}}' }
