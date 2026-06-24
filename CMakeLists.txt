@@ -101,7 +101,7 @@ if(BUILD_BROKER)
     target_include_directories(broker PRIVATE ${CMAKE_CURRENT_LIST_DIR}/broker/includes/ ${CMAKE_CURRENT_LIST_DIR}/includes/ ${cereal_SOURCE_DIR}/include/)
     if(WIN32)
         find_package(unofficial-sqlite3 CONFIG REQUIRED)
-        target_link_libraries(broker nlohmann_json::nlohmann_json pthread spdlog::spdlog_header_only ws2_32 unofficial::sqlite3::sqlite3)
+        target_link_libraries(broker nlohmann_json::nlohmann_json spdlog::spdlog_header_only ws2_32 unofficial::sqlite3::sqlite3)
     else()
         find_package(SQLite3 REQUIRED)
         target_link_libraries(broker nlohmann_json::nlohmann_json pthread spdlog::spdlog_header_only SQLite::SQLite3)
@@ -124,12 +124,21 @@ if(BUILD_SAMPLE_APPS)
     target_include_directories(publish_raw PRIVATE ${CMAKE_CURRENT_LIST_DIR}/)
     target_include_directories(subscribe_raw PRIVATE ${CMAKE_CURRENT_LIST_DIR}/)
 
-    target_link_libraries(publish PRIVATE mmw pthread)
-    target_link_libraries(subscribe PRIVATE mmw pthread)
-    target_link_libraries(publish_c PRIVATE mmw pthread)
-    target_link_libraries(subscribe_c PRIVATE mmw pthread)
-    target_link_libraries(publish_raw PRIVATE mmw pthread)
-    target_link_libraries(subscribe_raw PRIVATE mmw pthread)
+    if(WIN32)
+        target_link_libraries(publish PRIVATE mmw)
+        target_link_libraries(subscribe PRIVATE mmw)
+        target_link_libraries(publish_c PRIVATE mmw)
+        target_link_libraries(subscribe_c PRIVATE mmw)
+        target_link_libraries(publish_raw PRIVATE mmw)
+        target_link_libraries(subscribe_raw PRIVATE mmw)
+    else()
+        target_link_libraries(publish PRIVATE mmw pthread)
+        target_link_libraries(subscribe PRIVATE mmw pthread)
+        target_link_libraries(publish_c PRIVATE mmw pthread)
+        target_link_libraries(subscribe_c PRIVATE mmw pthread)
+        target_link_libraries(publish_raw PRIVATE mmw pthread)
+        target_link_libraries(subscribe_raw PRIVATE mmw pthread)
+    endif()
 endif()
 
 # Build Python module if requested
@@ -142,23 +151,32 @@ if(BUILD_PYTHON_MODULE)
     )
     target_link_libraries(_mmw_module PRIVATE mmw)
 
-    # Output the .pyd/.so directly as mmw inside the python/mmw folder
-    set_target_properties(_mmw_module PROPERTIES
-        OUTPUT_NAME "mmw" # the .pyd/.so will be named mmw
-        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/python/mmw/"
-        BUILD_RPATH "$ORIGIN"
-        INSTALL_RPATH "$ORIGIN"
-    )
-
-    # Static linking of gcc and c++ standard libraries
-    if(WIN32)
-        target_link_options(_mmw_module PRIVATE
-            "-static-libgcc"
-            "-static-libstdc++"
-            # Force static linking of winpthread, which often stays dynamic otherwise
-            "-Wl,-Bstatic,--whole-archive"
-            "-lwinpthread"
-            "-Wl,--no-whole-archive,-Bdynamic"
+    # Output the module. Prefix the intermediate files on MSVC to prevent collisions.
+    if(MSVC)
+        set_target_properties(_mmw_module PROPERTIES
+            OUTPUT_NAME "mmw"
+            ARCHIVE_OUTPUT_NAME "_mmw_module_static"
+            LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/python/mmw/"
         )
+    else()
+        set_target_properties(_mmw_module PROPERTIES
+            OUTPUT_NAME "mmw" 
+            LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/python/mmw/"
+            BUILD_RPATH "$ORIGIN"
+            INSTALL_RPATH "$ORIGIN"
+        )
+    endif()
+
+    # Static linking flags (Only apply if using GCC/MinGW, hide from MSVC)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        if(WIN32)
+            target_link_options(_mmw_module PRIVATE
+                "-static-libgcc"
+                "-static-libstdc++"
+                "-Wl,-Bstatic,--whole-archive"
+                "-lwinpthread"
+                "-Wl,--no-whole-archive,-Bdynamic"
+            )
+        endif()
     endif()
 endif()

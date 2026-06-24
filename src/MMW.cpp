@@ -26,6 +26,10 @@ static IMmwMessageSerializer* g_serializer = nullptr;
 static std::map<int, std::mutex> socketSendMutexes;
 static std::mutex socketSendMutexMapLock;
 
+#ifdef _WIN32
+#include <BaseTsd.h>
+typedef SSIZE_T ssize_t;
+#endif
 
 /**
  * Helper function to send a length-prefixed message

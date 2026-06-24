@@ -1,4 +1,9 @@
+#ifdef _WIN32
+#include <io.h>
+#include <process.h>
+#else
 #include <unistd.h>
+#endif
 #include <cstring>
 #include <vector>
 #include <thread>
@@ -15,6 +20,11 @@
 #include "SerializerAbstraction.h"
 #include "SocketAbstraction.h"
 #include "BrokerPersistence.h"
+
+#ifdef _WIN32
+#include <BaseTsd.h>
+typedef SSIZE_T ssize_t;
+#endif
 
 struct ConnectedClient {
     int socket_fd;
@@ -306,7 +316,7 @@ int main(int argc, char *argv[]) {
 
     // Start resend thread for unacked messages
     constexpr int MAX_RETRIES = 3;
-    std::thread resendThread([]() {
+    std::thread resendThread([MAX_RETRIES]() {
         while (running) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             auto now = std::chrono::steady_clock::now();

@@ -45,8 +45,7 @@ tasks:
         -D{{.SERIALIZER}}=ON
         -DBUILD_SHARED_LIBRARY={{.SHARED}}
         {{if eq OS "windows"}}
-        -DCMAKE_TOOLCHAIN_FILE={{.VCPKG_PATH}} 
-        -G "Unix Makefiles"
+        -DCMAKE_TOOLCHAIN_FILE={{.VCPKG_PATH}}
         {{end}}
 
   cmake:build:

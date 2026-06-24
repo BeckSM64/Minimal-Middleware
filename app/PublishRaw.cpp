@@ -25,7 +25,7 @@ int main() {
 
     mmw_create_publisher("Raw Message Topic");
 
-    for (int i = 0; i < 1000; i++) {
+    for (int i = 0; i < 10000; i++) {
         mmw_publish_raw("Raw Message Topic", &testRawMessageStruct, sizeof(testRawMessageStruct), MMW_RELIABLE);
     }
 
