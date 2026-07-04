@@ -143,7 +143,7 @@ endif()
 
 # Build Python module if requested
 # if(BUILD_PYTHON_MODULE)
-    pybind11_add_module(_mmw Bindings.cpp)
+    pybind11_add_module(_mmw ${CMAKE_SOURCE_DIR}/python/Bindings.cpp)
 
     target_link_libraries(_mmw PRIVATE mmw)
 
