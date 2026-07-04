@@ -28,9 +28,9 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(spdlog)
 
 # Fetch pybind11
-if(BUILD_PYTHON_MODULE)
+# if(BUILD_PYTHON_MODULE)
     set(PYBIND11_FINDPYTHON NEW CACHE STRING "")
-    set(PYBIND11_PYTHON_VERSION 3.12 CACHE STRING "")
+    # set(PYBIND11_PYTHON_VERSION 3.12 CACHE STRING "")
     set(_Python_EXECUTABLE_DEBUG "" CACHE FILEPATH "Suppress debug executable error")
 
     FetchContent_Declare(
@@ -39,7 +39,7 @@ if(BUILD_PYTHON_MODULE)
         GIT_TAG v3.0.1
     )
     FetchContent_MakeAvailable(pybind11)
-endif()
+# endif()
 
 # Fetch Cereal
 set(CEREAL_USE_BOOST OFF CACHE BOOL "" FORCE)
@@ -142,41 +142,13 @@ if(BUILD_SAMPLE_APPS)
 endif()
 
 # Build Python module if requested
-if(BUILD_PYTHON_MODULE)
-    set_property(TARGET mmw PROPERTY POSITION_INDEPENDENT_CODE ON)
-    pybind11_add_module(_mmw_module python/Bindings.cpp)
-    target_include_directories(_mmw_module PRIVATE 
-        ${CMAKE_CURRENT_LIST_DIR}/ 
-        ${CMAKE_CURRENT_LIST_DIR}/includes/
+# if(BUILD_PYTHON_MODULE)
+    pybind11_add_module(_mmw Bindings.cpp)
+
+    target_link_libraries(_mmw PRIVATE mmw)
+
+    install(TARGETS _mmw
+        LIBRARY DESTINATION mmw
+        RUNTIME DESTINATION mmw
     )
-    target_link_libraries(_mmw_module PRIVATE mmw)
-
-    # Output the module. Prefix the intermediate files on MSVC to prevent collisions.
-    if(MSVC)
-        set_target_properties(_mmw_module PROPERTIES
-            OUTPUT_NAME "mmw"
-            ARCHIVE_OUTPUT_NAME "_mmw_module_static"
-            LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/python/mmw/"
-        )
-    else()
-        set_target_properties(_mmw_module PROPERTIES
-            OUTPUT_NAME "mmw" 
-            LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/python/mmw/"
-            BUILD_RPATH "$ORIGIN"
-            INSTALL_RPATH "$ORIGIN"
-        )
-    endif()
-
-    # Static linking flags (Only apply if using GCC/MinGW, hide from MSVC)
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-        if(WIN32)
-            target_link_options(_mmw_module PRIVATE
-                "-static-libgcc"
-                "-static-libstdc++"
-                "-Wl,-Bstatic,--whole-archive"
-                "-lwinpthread"
-                "-Wl,--no-whole-archive,-Bdynamic"
-            )
-        endif()
-    endif()
-endif()
+# endif()

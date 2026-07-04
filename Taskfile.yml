@@ -55,13 +55,14 @@ tasks:
 
   python:install:
     internal: true
-    dir: python
+    # dir: python
+    dir: ./
     # This 'run: once' prevents double-running if called multiple times
     # The 'status' check skips the task if PYTHON is not ON
     status:
       - test "{{.PYTHON}}" != "ON"
     cmds:
-      - "{{.PYTHON_EXE}} -m pip install -r ../requirements.txt"
+      - "{{.PYTHON_EXE}} -m pip install -r requirements.txt"
       - "{{.PYTHON_EXE}} -m build ."
       - "{{.PYTHON_EXE}} -m pip install dist/*.whl --force-reinstall"
 

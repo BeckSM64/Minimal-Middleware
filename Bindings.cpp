@@ -7,7 +7,7 @@
 #include <queue>
 #include <map>
 #include <string>
-#include "MMW.h"
+#include "includes/MMW.h"
 
 namespace py = pybind11;
 
@@ -102,7 +102,7 @@ extern "C" void subscriber_trampoline(const char* topic, const char* message) {
 }
 
 // PYBIND11 MODULE
-PYBIND11_MODULE(mmw, m) {
+PYBIND11_MODULE(_mmw, m) {
     m.doc() = "Python bindings for Minimal Middleware";
 
     // Enums
