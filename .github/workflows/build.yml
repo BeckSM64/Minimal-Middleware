@@ -121,11 +121,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install build scikit-build-core pybind11
 
-      - name: Build Python wheel
-        shell: bash
+      - name: Build Python wheel (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
         env:
-          CMAKE_ARGS: >-
-            ${{ runner.os == 'Windows' && '-DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake' || '' }}
+          CMAKE_ARGS: -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
+        run: python -m build .
+
+      - name: Build Python wheel (Linux/macOS)
+        if: runner.os != 'Windows'
         run: python -m build .
 
       - name: Upload wheel
