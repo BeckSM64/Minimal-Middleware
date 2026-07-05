@@ -103,16 +103,16 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Clone vcpkg
+      - name: Clone vcpkg (Windows only)
         if: runner.os == 'Windows'
         run: git clone https://github.com/microsoft/vcpkg.git
 
-      - name: Bootstrap vcpkg
+      - name: Bootstrap vcpkg (Windows only)
         if: runner.os == 'Windows'
         shell: pwsh
         run: .\vcpkg\bootstrap-vcpkg.bat
 
-      - name: Install sqlite3
+      - name: Install sqlite3 (Windows only)
         if: runner.os == 'Windows'
         run: .\vcpkg\vcpkg.exe install sqlite3
 
@@ -124,9 +124,10 @@ jobs:
       - name: Build Python wheel (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        env:
-          CMAKE_ARGS: -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
-        run: python -m build .
+        run: |
+          $toolchain = "${{ github.workspace }}\vcpkg\scripts\buildsystems\vcpkg.cmake"
+          $env:CMAKE_ARGS="-DCMAKE_TOOLCHAIN_FILE=$toolchain"
+          python -m build .
 
       - name: Build Python wheel (Linux/macOS)
         if: runner.os != 'Windows'
