@@ -1,4 +1,8 @@
+#ifdef _WIN32
+#include <io.h>
+#else
 #include <unistd.h>
+#endif
 #include <stdio.h>
 #include "MMW.h"
 
@@ -16,7 +20,11 @@ int main() {
 
     // Sleep to keep subscriber up
     while (1) {
+#ifdef _WIN32
+        Sleep(1000);
+#else
         sleep(1);
+#endif
     }
 
     // Cleanup

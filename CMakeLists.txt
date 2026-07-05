@@ -27,17 +27,6 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(spdlog)
 
-# Fetch pybind11
-set(PYBIND11_FINDPYTHON NEW CACHE STRING "")
-set(PYBIND11_PYTHON_VERSION 3.12 CACHE STRING "")
-set(_Python_EXECUTABLE_DEBUG "" CACHE FILEPATH "Suppress debug executable error")
-FetchContent_Declare(
-    pybind11
-    GIT_REPOSITORY https://github.com/pybind/pybind11.git
-    GIT_TAG v3.0.1
-)
-FetchContent_MakeAvailable(pybind11)
-
 # Fetch Cereal
 set(CEREAL_USE_BOOST OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
@@ -60,19 +49,8 @@ else()
     set(SERIALIZER_SRC ${CMAKE_CURRENT_LIST_DIR}/src/serialization/CerealSerializer.cpp)
 endif()
 
-# Build a static lib if we're building a Python whl on Windows
-# to keep everything in one self contained installable
-if(BUILD_PYTHON_MODULE)
-    if(WIN32)
-        option(BUILD_SHARED_LIBS "Build as shared library" OFF)
-    else()
-        option(BUILD_SHARED_LIBS "Build as shared library" ON)
-    endif()
-else()
-    option(BUILD_SHARED_LIBS "Build as shared library" ON)
-endif()
-
 # Create the mw library
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 add_library(
     mmw
     ${CMAKE_CURRENT_LIST_DIR}/src/MMW.cpp
@@ -110,7 +88,7 @@ if(BUILD_BROKER)
     target_include_directories(broker PRIVATE ${CMAKE_CURRENT_LIST_DIR}/broker/includes/ ${CMAKE_CURRENT_LIST_DIR}/includes/ ${cereal_SOURCE_DIR}/include/)
     if(WIN32)
         find_package(unofficial-sqlite3 CONFIG REQUIRED)
-        target_link_libraries(broker nlohmann_json::nlohmann_json pthread spdlog::spdlog_header_only ws2_32 unofficial::sqlite3::sqlite3)
+        target_link_libraries(broker nlohmann_json::nlohmann_json spdlog::spdlog_header_only ws2_32 unofficial::sqlite3::sqlite3)
     else()
         find_package(SQLite3 REQUIRED)
         target_link_libraries(broker nlohmann_json::nlohmann_json pthread spdlog::spdlog_header_only SQLite::SQLite3)
@@ -133,45 +111,24 @@ if(BUILD_SAMPLE_APPS)
     target_include_directories(publish_raw PRIVATE ${CMAKE_CURRENT_LIST_DIR}/)
     target_include_directories(subscribe_raw PRIVATE ${CMAKE_CURRENT_LIST_DIR}/)
 
-    target_link_libraries(publish PRIVATE mmw pthread)
-    target_link_libraries(subscribe PRIVATE mmw pthread)
-    target_link_libraries(publish_c PRIVATE mmw pthread)
-    target_link_libraries(subscribe_c PRIVATE mmw pthread)
-    target_link_libraries(publish_raw PRIVATE mmw pthread)
-    target_link_libraries(subscribe_raw PRIVATE mmw pthread)
-
-    # Copy config if it exists
-    if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/config/config.yml")
-        file(COPY "${CMAKE_CURRENT_LIST_DIR}/config/config.yml" DESTINATION "${CMAKE_CURRENT_LIST_DIR}/build/")
+    if(WIN32)
+        target_link_libraries(publish PRIVATE mmw)
+        target_link_libraries(subscribe PRIVATE mmw)
+        target_link_libraries(publish_c PRIVATE mmw)
+        target_link_libraries(subscribe_c PRIVATE mmw)
+        target_link_libraries(publish_raw PRIVATE mmw)
+        target_link_libraries(subscribe_raw PRIVATE mmw)
+    else()
+        target_link_libraries(publish PRIVATE mmw pthread)
+        target_link_libraries(subscribe PRIVATE mmw pthread)
+        target_link_libraries(publish_c PRIVATE mmw pthread)
+        target_link_libraries(subscribe_c PRIVATE mmw pthread)
+        target_link_libraries(publish_raw PRIVATE mmw pthread)
+        target_link_libraries(subscribe_raw PRIVATE mmw pthread)
     endif()
 endif()
 
 # Build Python module if requested
 if(BUILD_PYTHON_MODULE)
-    pybind11_add_module(_mmw_module python/Bindings.cpp)
-    target_include_directories(_mmw_module PRIVATE 
-        ${CMAKE_CURRENT_LIST_DIR}/ 
-        ${CMAKE_CURRENT_LIST_DIR}/includes/
-    )
-    target_link_libraries(_mmw_module PRIVATE mmw)
-
-    # Output the .pyd/.so directly as mmw inside the python/mmw folder
-    set_target_properties(_mmw_module PROPERTIES
-        OUTPUT_NAME "mmw" # the .pyd/.so will be named mmw
-        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/python/mmw/"
-        BUILD_RPATH "$ORIGIN"
-        INSTALL_RPATH "$ORIGIN"
-    )
-
-    # Static linking of gcc and c++ standard libraries
-    if(WIN32)
-        target_link_options(_mmw_module PRIVATE
-            "-static-libgcc"
-            "-static-libstdc++"
-            # Force static linking of winpthread, which often stays dynamic otherwise
-            "-Wl,-Bstatic,--whole-archive"
-            "-lwinpthread"
-            "-Wl,--no-whole-archive,-Bdynamic"
-        )
-    endif()
+    add_subdirectory(python/)
 endif()
