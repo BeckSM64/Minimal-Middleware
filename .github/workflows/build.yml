@@ -125,9 +125,10 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $toolchain = "${{ github.workspace }}\vcpkg\scripts\buildsystems\vcpkg.cmake"
-          $env:CMAKE_ARGS="-DCMAKE_TOOLCHAIN_FILE=$toolchain"
-          python -m build .
+          $toolchain = Join-Path "${{ github.workspace }}" "vcpkg\scripts\buildsystems\vcpkg.cmake"
+
+          python -m build . `
+            --config-setting=cmake.define.CMAKE_TOOLCHAIN_FILE="$toolchain"
 
       - name: Build Python wheel (Linux/macOS)
         if: runner.os != 'Windows'
