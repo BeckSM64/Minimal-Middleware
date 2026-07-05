@@ -95,7 +95,6 @@ jobs:
 
       - name: Build Python binding wheel
         run: |
-          cd python/
           python3 -m build .
 
       - name: Upload Python wheel
@@ -125,7 +124,7 @@ jobs:
 
       - name: Install wheel
         run: |
-          cd python/dist/
+          cd dist/
           python3 -m pip install --upgrade pip
           python3 -m pip install mmw-0.1.0-py3-none-any.whl
 
