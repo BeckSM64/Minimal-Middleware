@@ -125,6 +125,7 @@ jobs:
       - name: Install wheel
         run: |
           cd dist/
+          ls
           python3 -m pip install --upgrade pip
           python3 -m pip install mmw-2.2.0-py3-none-any.whl
 
