@@ -8,7 +8,7 @@ It allows applications to easily exchange messages across processes or systems u
 - C++11+ compatible
 - C-compatible interface
 - Configurable serialization using nlohmann::json or cereal
-- Cross-platform TCP communication (Linux/Windows)
+- Cross-platform TCP communication (Linux/Windows/MacOS)
 - spdlog-based logging
 - Simple interface for publishers and subscribers
 - Extensible message format
