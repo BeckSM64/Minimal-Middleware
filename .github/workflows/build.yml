@@ -125,9 +125,8 @@ jobs:
       - name: Install wheel
         run: |
           cd dist/
-          ls
           python3 -m pip install --upgrade pip
-          python3 -m pip install mmw-2.2.0-py3-none-any.whl
+          python3 -m pip install mmw-2.2.0-cp312-cp312-linux_x86_64.whl
 
       - name: Verify Python binding
         run: python3 -c "import mmw; print('Python binding imported successfully'); print('Available functions:', dir(mmw))"
