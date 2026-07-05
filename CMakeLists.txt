@@ -27,20 +27,6 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(spdlog)
 
-# Fetch pybind11
-# if(BUILD_PYTHON_MODULE)
-    set(PYBIND11_FINDPYTHON NEW CACHE STRING "")
-    # set(PYBIND11_PYTHON_VERSION 3.12 CACHE STRING "")
-    set(_Python_EXECUTABLE_DEBUG "" CACHE FILEPATH "Suppress debug executable error")
-
-    FetchContent_Declare(
-        pybind11
-        GIT_REPOSITORY https://github.com/pybind/pybind11.git
-        GIT_TAG v3.0.1
-    )
-    FetchContent_MakeAvailable(pybind11)
-# endif()
-
 # Fetch Cereal
 set(CEREAL_USE_BOOST OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
@@ -142,13 +128,6 @@ if(BUILD_SAMPLE_APPS)
 endif()
 
 # Build Python module if requested
-# if(BUILD_PYTHON_MODULE)
-    pybind11_add_module(_mmw ${CMAKE_SOURCE_DIR}/python/Bindings.cpp)
-
-    target_link_libraries(_mmw PRIVATE mmw)
-
-    install(TARGETS _mmw
-        LIBRARY DESTINATION mmw
-        RUNTIME DESTINATION mmw
-    )
-# endif()
+if(BUILD_PYTHON_MODULE)
+    add_subdirectory(python/)
+endif()

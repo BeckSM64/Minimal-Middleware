@@ -70,9 +70,7 @@ tasks:
     desc: Clean build artifacts
     cmds:
       - rm -rf build/
-      - rm -rf python/dist/
-      - rm -rf python/build/
-      - rm -rf python/mmw.egg-info
+      - rm -rf dist/
 
   docs:
     desc: Build Doxygen + Sphinx documentation
