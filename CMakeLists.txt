@@ -50,6 +50,7 @@ else()
 endif()
 
 # Create the mw library
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 add_library(
     mmw
     ${CMAKE_CURRENT_LIST_DIR}/src/MMW.cpp
