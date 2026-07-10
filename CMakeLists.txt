@@ -49,14 +49,20 @@ else()
     set(SERIALIZER_SRC ${CMAKE_CURRENT_LIST_DIR}/src/serialization/CerealSerializer.cpp)
 endif()
 
-# Create the mw library
+# Create the mmw core library
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+add_library(
+    mmw_core
+    ${CMAKE_CURRENT_LIST_DIR}/src/serialization/SerializerAbstraction.cpp
+    ${SERIALIZER_SRC}
+    ${CMAKE_CURRENT_LIST_DIR}/src/network/SocketAbstraction.cpp
+)
+
+# Create the mmw library
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 add_library(
     mmw
     ${CMAKE_CURRENT_LIST_DIR}/src/MMW.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/src/serialization/SerializerAbstraction.cpp
-    ${SERIALIZER_SRC}
-    ${CMAKE_CURRENT_LIST_DIR}/src/network/SocketAbstraction.cpp
 )
 
 # Create an alias target
@@ -67,31 +73,35 @@ target_include_directories(mmw PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/includes>
     $<INSTALL_INTERFACE:include>
 )
+
+target_include_directories(mmw_core PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/includes>
+    $<INSTALL_INTERFACE:include>
+)
+
 target_include_directories(mmw PRIVATE ${CMAKE_CURRENT_LIST_DIR}/ ${CMAKE_CURRENT_LIST_DIR}/includes/ ${cereal_SOURCE_DIR}/include/)
+target_include_directories(mmw_core PRIVATE ${CMAKE_CURRENT_LIST_DIR}/ ${CMAKE_CURRENT_LIST_DIR}/includes/ ${cereal_SOURCE_DIR}/include/)
 
 # Link Libraries
 if(WIN32)
-    target_link_libraries(mmw PUBLIC nlohmann_json::nlohmann_json spdlog::spdlog_header_only ws2_32)
+    target_link_libraries(mmw PUBLIC mmw_core nlohmann_json::nlohmann_json spdlog::spdlog_header_only ws2_32)
 else()
-    target_link_libraries(mmw PUBLIC nlohmann_json::nlohmann_json spdlog::spdlog_header_only)
+    target_link_libraries(mmw PUBLIC mmw_core nlohmann_json::nlohmann_json spdlog::spdlog_header_only)
 endif()
 
 # Build broker if requested
 if(BUILD_BROKER)
     add_executable(
-        broker ${CMAKE_CURRENT_LIST_DIR}/broker/src/Broker.cpp
-        ${CMAKE_CURRENT_LIST_DIR}/src/serialization/SerializerAbstraction.cpp
-        ${SERIALIZER_SRC}
-        ${CMAKE_CURRENT_LIST_DIR}/src/network/SocketAbstraction.cpp
+        mmw_broker ${CMAKE_CURRENT_LIST_DIR}/broker/src/Broker.cpp
         ${CMAKE_CURRENT_LIST_DIR}/broker/src/BrokerPersistence.cpp
     )
-    target_include_directories(broker PRIVATE ${CMAKE_CURRENT_LIST_DIR}/broker/includes/ ${CMAKE_CURRENT_LIST_DIR}/includes/ ${cereal_SOURCE_DIR}/include/)
+    target_include_directories(mmw_broker PRIVATE ${CMAKE_CURRENT_LIST_DIR}/broker/includes/ ${CMAKE_CURRENT_LIST_DIR}/includes/ ${cereal_SOURCE_DIR}/include/)
     if(WIN32)
         find_package(unofficial-sqlite3 CONFIG REQUIRED)
-        target_link_libraries(broker nlohmann_json::nlohmann_json spdlog::spdlog_header_only ws2_32 unofficial::sqlite3::sqlite3)
+        target_link_libraries(mmw_broker mmw_core nlohmann_json::nlohmann_json spdlog::spdlog_header_only ws2_32 unofficial::sqlite3::sqlite3)
     else()
         find_package(SQLite3 REQUIRED)
-        target_link_libraries(broker nlohmann_json::nlohmann_json pthread spdlog::spdlog_header_only SQLite::SQLite3)
+        target_link_libraries(mmw_broker mmw_core nlohmann_json::nlohmann_json pthread spdlog::spdlog_header_only SQLite::SQLite3)
     endif()
 endif()
 
