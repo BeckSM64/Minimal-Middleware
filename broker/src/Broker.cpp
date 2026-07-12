@@ -21,6 +21,8 @@
 #include "SocketAbstraction.h"
 #include "BrokerPersistence.h"
 
+#include "ITransport.h"
+
 #ifdef _WIN32
 #include <BaseTsd.h>
 typedef SSIZE_T ssize_t;
@@ -154,7 +156,7 @@ void removeClientByFd(int client_fd) {
 void handleClient(int client_fd) {
     while (running) {
         uint32_t netLen;
-        ssize_t n = SocketAbstraction::Recv(client_fd, &netLen, sizeof(netLen), MSG_WAITALL);
+        ssize_t n = transport->recv(&netLen, sizeof(netLen));
         if (n <= 0) {
             break;
         }
