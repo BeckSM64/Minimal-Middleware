@@ -36,6 +36,28 @@ FetchContent_Declare(
 )
 FetchContent_Populate(cereal)
 
+include(FetchContent)
+
+FetchContent_Declare(
+    websocketpp
+    GIT_REPOSITORY https://github.com/zaphoyd/websocketpp.git
+    GIT_TAG 0.8.2
+)
+
+FetchContent_GetProperties(websocketpp)
+
+if(NOT websocketpp_POPULATED)
+    FetchContent_Populate(websocketpp)
+endif()
+
+FetchContent_Declare(
+    asio
+    GIT_REPOSITORY https://github.com/chriskohlhoff/asio.git
+    GIT_TAG asio-1-30-2
+)
+
+FetchContent_MakeAvailable(asio)
+
 # Set the serializer
 if(CEREAL_SERIALIZER)
     add_compile_definitions(CEREAL_SERIALIZER)
@@ -57,7 +79,9 @@ add_library(
     ${SERIALIZER_SRC}
     ${CMAKE_CURRENT_LIST_DIR}/src/network/SocketAbstraction.cpp
     ${CMAKE_CURRENT_LIST_DIR}/src/transport/TcpTransport.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/src/transport/WebSocketTransport.cpp
     ${CMAKE_CURRENT_LIST_DIR}/src/listener/TcpListener.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/src/listener/WebSocketListener.cpp
 )
 
 # Create the mmw library
@@ -82,7 +106,7 @@ target_include_directories(mmw_core PUBLIC
 )
 
 target_include_directories(mmw PRIVATE ${CMAKE_CURRENT_LIST_DIR}/ ${CMAKE_CURRENT_LIST_DIR}/includes/ ${cereal_SOURCE_DIR}/include/)
-target_include_directories(mmw_core PRIVATE ${CMAKE_CURRENT_LIST_DIR}/ ${CMAKE_CURRENT_LIST_DIR}/includes/ ${cereal_SOURCE_DIR}/include/)
+target_include_directories(mmw_core PRIVATE ${CMAKE_CURRENT_LIST_DIR}/ ${CMAKE_CURRENT_LIST_DIR}/includes/ ${cereal_SOURCE_DIR}/include/ ${websocketpp_SOURCE_DIR} ${asio_SOURCE_DIR}/asio/include)
 
 # Link Libraries
 if(WIN32)
@@ -97,7 +121,7 @@ if(BUILD_BROKER)
         mmw_broker ${CMAKE_CURRENT_LIST_DIR}/broker/src/Broker.cpp
         ${CMAKE_CURRENT_LIST_DIR}/broker/src/BrokerPersistence.cpp
     )
-    target_include_directories(mmw_broker PRIVATE ${CMAKE_CURRENT_LIST_DIR}/broker/includes/ ${CMAKE_CURRENT_LIST_DIR}/includes/ ${cereal_SOURCE_DIR}/include/)
+    target_include_directories(mmw_broker PRIVATE ${CMAKE_CURRENT_LIST_DIR}/broker/includes/ ${CMAKE_CURRENT_LIST_DIR}/includes/ ${cereal_SOURCE_DIR}/include/ ${websocketpp_SOURCE_DIR} ${asio_SOURCE_DIR}/asio/include)
     if(WIN32)
         find_package(unofficial-sqlite3 CONFIG REQUIRED)
         target_link_libraries(mmw_broker mmw_core nlohmann_json::nlohmann_json spdlog::spdlog_header_only ws2_32 unofficial::sqlite3::sqlite3)
