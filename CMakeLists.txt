@@ -57,6 +57,7 @@ add_library(
     ${SERIALIZER_SRC}
     ${CMAKE_CURRENT_LIST_DIR}/src/network/SocketAbstraction.cpp
     ${CMAKE_CURRENT_LIST_DIR}/src/transport/TcpTransport.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/src/listener/TcpListener.cpp
 )
 
 # Create the mmw library

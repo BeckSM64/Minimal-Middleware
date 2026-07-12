@@ -10,6 +10,7 @@
 #include <mutex>
 #include <algorithm>
 #include <atomic>
+#include <memory>
 #include <signal.h>
 #include <errno.h>
 #include <spdlog/spdlog.h>
@@ -22,6 +23,8 @@
 #include "BrokerPersistence.h"
 
 #include "ITransport.h"
+#include "TcpListener.h"
+#include "IListener.h"
 
 #ifdef _WIN32
 #include <BaseTsd.h>
@@ -29,8 +32,8 @@ typedef SSIZE_T ssize_t;
 #endif
 
 struct ConnectedClient {
-    int socket_fd;
-    std::string type; // "publisher" or "subscriber"
+    std::shared_ptr<ITransport> transport;
+    std::string type;
     std::string topic;
     std::chrono::steady_clock::time_point lastHeartbeat;
 };
@@ -47,116 +50,118 @@ static std::mutex clientListMutex;
 static std::vector<std::thread> clientThreads;
 static std::mutex threadListMutex;
 
-static int server_fd = -1;
+static std::unique_ptr<IListener> listener;
 static std::atomic<bool> running(true);
 
 static IMmwMessageSerializer* g_serializer = nullptr;
 
 static std::mutex ackMutex;
-static std::unordered_map<int, std::unordered_map<uint32_t, PendingAck>> unackedMessages;
+static std::unordered_map<ITransport*, std::unordered_map<uint32_t, PendingAck>> unackedMessages;
 
 static std::atomic<uint32_t> brokerMessageId{1}; // start at 1
 
 static BrokerPersistence* g_persistence = nullptr;
 
-static std::map<int, std::mutex> socketSendMutexes;
+std::map<ITransport*, std::mutex> transportSendMutexes;
 static std::mutex socketSendMutexMapLock;
 
 // Send a length-prefixed message
-inline bool sendMessage(int sock_fd, const std::string& data) {
+inline bool sendMessage(ITransport& transport, const std::string& data)
+{
     std::mutex* mtx;
     {
         std::lock_guard<std::mutex> lock(socketSendMutexMapLock);
-        mtx = &socketSendMutexes[sock_fd];
+        mtx = &transportSendMutexes[&transport];
     }
 
     std::lock_guard<std::mutex> lock(*mtx);
 
     uint32_t len = htonl(data.size());
 
-    if (SocketAbstraction::Send(sock_fd, &len, sizeof(len), 0) != sizeof(len)) {
+    if (transport.Send(&len, sizeof(len)) != sizeof(len))
         return false;
-    }
 
-    if (SocketAbstraction::Send(sock_fd, data.data(), data.size(), 0) != (ssize_t)data.size()) {
+    if (transport.Send(data.data(), data.size()) != (int)data.size())
         return false;
-    }
 
     return true;
 }
 
 // Helper function to route messages to subscribers
-void routeMessageToSubscribers(const std::string& topic, const MmwMessage& msg) {
+void routeMessageToSubscribers(const std::string& topic, const MmwMessage& msg)
+{
     if (topic.empty()) {
         return;
     }
 
-    std::vector<int> targets;
+    std::vector<std::shared_ptr<ITransport>> targets;
     {
         std::lock_guard<std::mutex> lock(clientListMutex);
         for (auto& client : connectedClientList) {
             if (client.type == "subscriber" && client.topic == topic) {
-                targets.push_back(client.socket_fd);
+                targets.push_back(client.transport);
             }
         }
     }
 
     std::string serialized = g_serializer->serialize(msg);
 
-    for (int fd : targets) {
-        if (!sendMessage(fd, serialized)) {
-            spdlog::error("send to subscriber fd={} failed, removing client", fd);
+    for (auto& transport : targets) {
+        if (!sendMessage(*transport, serialized)) {
+            spdlog::error("Failed to send to subscriber, removing client");
+
             std::lock_guard<std::mutex> lock(clientListMutex);
             connectedClientList.erase(
                 std::remove_if(
-                    connectedClientList.begin(), connectedClientList.end(),
-                        [fd](const ConnectedClient& c){
-                        return c.socket_fd == fd;
-                    }
-                ),
-                connectedClientList.end()
-            );
-            SocketAbstraction::SocketClose(fd);
-        
-        // Only track unacked messages if reliability was set
+                    connectedClientList.begin(),
+                    connectedClientList.end(),
+                    [&](const ConnectedClient& c) {
+                        return c.transport == transport;
+                    }),
+                connectedClientList.end());
+
+            transport->Close();
+
         } else if (msg.reliability) {
             std::lock_guard<std::mutex> lock(ackMutex);
+
             PendingAck ack;
             ack.msg = msg;
             ack.timestamp = std::chrono::steady_clock::now();
             ack.retryCount = 0;
-            unackedMessages[fd][msg.messageId] = ack;
 
+            unackedMessages[transport.get()][msg.messageId] = ack;
         }
     }
 }
 
-void removeClientByFd(int client_fd) {
+void removeClient(ITransport* transport)
+{
     {
         std::lock_guard<std::mutex> lock(clientListMutex);
         connectedClientList.erase(
             std::remove_if(
-                connectedClientList.begin(), connectedClientList.end(),
-                [client_fd](const ConnectedClient& c){
-                    return c.socket_fd == client_fd;
-                }
-            ),
-            connectedClientList.end()
-        );
+                connectedClientList.begin(),
+                connectedClientList.end(),
+                [transport](const ConnectedClient& c) {
+                    return c.transport.get() == transport;
+                }),
+            connectedClientList.end());
     }
 
     // Remove unacked messages when subscriber disconnects
     {
         std::lock_guard<std::mutex> lock(ackMutex);
-        unackedMessages.erase(client_fd);
+        unackedMessages.erase(transport);
     }
 }
 
 
-void handleClient(int client_fd) {
+void handleClient(std::shared_ptr<ITransport> transport)
+{
     while (running) {
         uint32_t netLen;
-        ssize_t n = transport->recv(&netLen, sizeof(netLen));
+        int n = transport->Recv(&netLen, sizeof(netLen));
         if (n <= 0) {
             break;
         }
@@ -167,7 +172,7 @@ void handleClient(int client_fd) {
         }
 
         std::vector<char> buf(msgLen);
-        n = SocketAbstraction::Recv(client_fd, buf.data(), msgLen, MSG_WAITALL);
+        n = transport->Recv(buf.data(), msgLen);
         if (n <= 0) {
             break;
         }
@@ -176,30 +181,37 @@ void handleClient(int client_fd) {
             MmwMessage msg = g_serializer->deserialize(std::string(buf.data(), msgLen));
 
             if (msg.type == "register") {
-                auto now = std::chrono::steady_clock::now();
-                ConnectedClient newClient{client_fd, msg.payload, msg.topic, std::chrono::steady_clock::now()};
+                ConnectedClient newClient{
+                    transport,
+                    msg.payload,
+                    msg.topic,
+                    std::chrono::steady_clock::now()
+                };
+
                 std::lock_guard<std::mutex> lock(clientListMutex);
                 connectedClientList.push_back(newClient);
-                spdlog::info("Registered {} for topic {} (fd={})", msg.payload, msg.topic, client_fd);
+
+                spdlog::info("Registered {} for topic {}", msg.payload, msg.topic);
+
             } else if (msg.type == "unregister") {
+
                 std::lock_guard<std::mutex> lock(clientListMutex);
                 connectedClientList.erase(
                     std::remove_if(
-                        connectedClientList.begin(), connectedClientList.end(),
-                            [&](const ConnectedClient& c){
-                            return c.socket_fd == client_fd && c.topic == msg.topic;
-                        }
-                    ),
-                    connectedClientList.end()
-                );
-                spdlog::info("Unregistered client fd={} topic={}", client_fd, msg.topic);
+                        connectedClientList.begin(),
+                        connectedClientList.end(),
+                        [&](const ConnectedClient& c) {
+                            return c.transport == transport &&
+                                   c.topic == msg.topic;
+                        }),
+                    connectedClientList.end());
+
+                spdlog::info("Unregistered client topic={}", msg.topic);
+
             } else if (msg.type == "publish") {
 
-                // Assign a unique messageId
-                // TODO: This could eventually reach a limit
                 msg.messageId = brokerMessageId++;
 
-                // Write message to sqlite database for persistence
                 if (!g_persistence->persistMessage(msg)) {
                     spdlog::warn("Failed to persist message {}", msg.messageId);
                 }
@@ -207,21 +219,26 @@ void handleClient(int client_fd) {
                 routeMessageToSubscribers(msg.topic, msg);
 
             } else if (msg.type == "ack") {
+
                 std::lock_guard<std::mutex> lock(ackMutex);
-                auto subIt = unackedMessages.find(client_fd);
+                auto subIt = unackedMessages.find(transport.get());
                 if (subIt != unackedMessages.end()) {
                     subIt->second.erase(msg.messageId);
                 }
-                spdlog::info("Received ACK for message {} from subscriber fd={}", msg.messageId, client_fd);
+
+                spdlog::info("Received ACK for message {}", msg.messageId);
+
             } else if (msg.type == "heartbeat") {
+
                 std::lock_guard<std::mutex> lock(clientListMutex);
                 for (auto& client : connectedClientList) {
-                    if (client.socket_fd == client_fd) {
+                    if (client.transport == transport) {
                         client.lastHeartbeat = std::chrono::steady_clock::now();
                         break;
                     }
                 }
-                spdlog::info("Received heartbeat for message  subscriber fd={}", client_fd);
+
+                spdlog::info("Received heartbeat");
             }
 
         } catch (const std::exception& e) {
@@ -229,17 +246,17 @@ void handleClient(int client_fd) {
         }
     }
 
-    SocketAbstraction::SocketClose(client_fd);
-    removeClientByFd(client_fd);
-    spdlog::info("Client disconnected (fd={})", client_fd);
+    transport->Close();
+    removeClient(transport.get());
+    spdlog::info("Client disconnected");
 }
 
 void handleSignal(int signum) {
     spdlog::info("Signal received ({}), shutting down broker...", signum);
     running = false;
-    if (server_fd != -1) {
-        SocketAbstraction::SocketClose(server_fd);
-        server_fd = -1;
+
+    if (listener) {
+        listener->Close();
     }
 }
 
@@ -250,182 +267,193 @@ int main(int argc, char *argv[]) {
     g_serializer = CreateSerializer();
     g_persistence = new BrokerPersistence("broker_data.db");
 
-    // Initialize brokerMessageId based on existing messages in DB
     brokerMessageId = g_persistence->getNextMessageId();
 
-    struct sockaddr_in address;
-    socklen_t addrlen = sizeof(address);
-
     SocketAbstraction::SocketStartup();
-
-    server_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_fd == -1) {
-        perror("socket");
-        return 1;
-    }
-
-    int opt = 1;
-    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, (const char*)&opt, sizeof(opt));
 
     int port = 5000;
     if (argc > 1) {
         try {
             port = std::stoi(argv[1]);
             if (port <= 0 || port > 65535) {
-                spdlog::warn("Invalid port number '{}', using default {}", argv[1], port);
+                spdlog::warn("Invalid port '{}', using default {}", argv[1], port);
                 port = 5000;
             }
-        } catch (const std::exception& e) {
-            spdlog::warn("Invalid port argument '{}', using default {}", argv[1], port);
+        } catch (...) {
+            spdlog::warn("Invalid port '{}', using default {}", argv[1], port);
             port = 5000;
         }
     }
 
-    address.sin_family = AF_INET;
-    address.sin_addr.s_addr = INADDR_ANY;
-    address.sin_port = htons(port);
+    listener.reset(new TcpListener());
 
-    if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) < 0) {
-        perror("bind");
-        return 1;
-    }
-    if (listen(server_fd, 16) < 0) {
-        perror("listen");
+    if (!listener->Listen(port)) {
+        spdlog::error("Failed to start listener on port {}", port);
         return 1;
     }
 
     spdlog::info("Broker listening on port {}", port);
 
-    // Start heartbeat monitoring thread
+
     std::thread heartbeatMonitor([]() {
-        constexpr int TIMEOUT_MS = 6000; // 6 seconds timeout
+        constexpr int TIMEOUT_MS = 6000;
+
         while (running) {
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
             auto now = std::chrono::steady_clock::now();
             std::lock_guard<std::mutex> lock(clientListMutex);
-            for (auto it = connectedClientList.begin(); it != connectedClientList.end();) {
+
+            for (auto it = connectedClientList.begin();
+                 it != connectedClientList.end();) {
+
                 if (it->type == "subscriber" &&
-                    std::chrono::duration_cast<std::chrono::milliseconds>(now - it->lastHeartbeat).count() > TIMEOUT_MS) {
-                    spdlog::warn("Subscriber fd={} timed out, removing", it->socket_fd);
-                    SocketAbstraction::SocketClose(it->socket_fd);
+                    std::chrono::duration_cast<std::chrono::milliseconds>(
+                        now - it->lastHeartbeat).count() > TIMEOUT_MS) {
+
+                    spdlog::warn("Subscriber timed out, removing");
+
+                    it->transport->Close();
                     it = connectedClientList.erase(it);
-                } else {
+                }
+                else {
                     ++it;
                 }
             }
         }
     });
 
-    // Start resend thread for unacked messages
+
     constexpr int MAX_RETRIES = 3;
+
     std::thread resendThread([MAX_RETRIES]() {
         while (running) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
             auto now = std::chrono::steady_clock::now();
-            std::vector<int> fdsToRemove;
+
+            std::vector<ITransport*> transportsToRemove;
 
             {
                 std::lock_guard<std::mutex> lock(ackMutex);
+
                 for (auto& clientPair : unackedMessages) {
-                    int fd = clientPair.first;
+                    auto transport = clientPair.first;
                     auto& msgMap = clientPair.second;
 
-                    for (auto it = msgMap.begin(); it != msgMap.end();) {
-                        auto& pending = it->second;
-                        auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - pending.timestamp);
+                    for (auto it = msgMap.begin();
+                         it != msgMap.end();) {
 
-                        if (elapsed.count() > 2) { // retry delay
+                        auto& pending = it->second;
+
+                        auto elapsed =
+                            std::chrono::duration_cast<std::chrono::seconds>(
+                                now - pending.timestamp);
+
+                        if (elapsed.count() > 2) {
+
                             if (pending.retryCount >= MAX_RETRIES) {
-                                spdlog::error("Max retries reached for message {} to fd={}", pending.msg.messageId, fd);
-                                fdsToRemove.push_back(fd);
+                                spdlog::error(
+                                    "Max retries reached for message {}",
+                                    pending.msg.messageId);
+
+                                transportsToRemove.push_back(transport);
                                 break;
-                            } else {
-                                spdlog::warn("Resending message {} to fd={}", pending.msg.messageId, fd);
-                                sendMessage(fd, g_serializer->serialize(pending.msg));
+                            }
+                            else {
+                                spdlog::warn(
+                                    "Resending message {}",
+                                    pending.msg.messageId);
+
+                                sendMessage(
+                                    *transport,
+                                    g_serializer->serialize(pending.msg));
+
                                 pending.timestamp = now;
                                 pending.retryCount++;
                                 ++it;
                             }
-                        } else {
+                        }
+                        else {
                             ++it;
                         }
                     }
                 }
 
-                for (int fd : fdsToRemove) {
-                    unackedMessages.erase(fd);
-                    SocketAbstraction::SocketClose(fd);
-                    removeClientByFd(fd);
+                for (auto& transport : transportsToRemove) {
+                    unackedMessages.erase(transport);
+                    transport->Close();
+                    removeClient(transport);
                 }
             }
         }
     });
 
+
     // Accept loop
     while (running) {
-        struct sockaddr_in client_addr;
-        socklen_t client_len = sizeof(client_addr);
-        int client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &client_len);
-        if (client_fd < 0) {
-            if (!running) {
+
+        auto transport = listener->Accept();
+
+        if (!transport) {
+            if (!running)
                 break;
-            }
-            if (errno == EINTR) {
-                continue;
-            }
-            perror("accept");
+
+            spdlog::warn("Failed to accept client");
             continue;
         }
 
-        spdlog::info("Client connected from {}:{} (fd={})", inet_ntoa(client_addr.sin_addr),
-                     ntohs(client_addr.sin_port), client_fd);
+        spdlog::info("Client connected");
 
-        {
-            std::lock_guard<std::mutex> lt(threadListMutex);
-            clientThreads.emplace_back(std::thread(handleClient, client_fd));
-        }
+        std::lock_guard<std::mutex> lt(threadListMutex);
+
+        clientThreads.emplace_back(
+            std::thread(handleClient, transport)
+        );
     }
 
-    // Join all threads
+
+    listener->Close();
+
+
     heartbeatMonitor.join();
 
     {
         std::lock_guard<std::mutex> lt(threadListMutex);
+
         for (auto& t : clientThreads) {
-            if (t.joinable()) {
+            if (t.joinable())
                 t.join();
-            }
         }
+
         clientThreads.clear();
     }
 
+
     resendThread.join();
 
-    // Cleanup remaining clients
+
     {
         std::lock_guard<std::mutex> lock(clientListMutex);
+
         for (auto& c : connectedClientList) {
-            if (c.socket_fd != -1) {
-                SocketAbstraction::SocketClose(c.socket_fd);
+            if (c.transport) {
+                c.transport->Close();
             }
         }
+
         connectedClientList.clear();
     }
 
-    if (server_fd != -1) {
-        SocketAbstraction::SocketClose(server_fd);
-        server_fd = -1;
-    }
 
-    // Cleanup broker persistence
     delete g_persistence;
     g_persistence = nullptr;
 
-    // Cleanup serializer
     delete g_serializer;
     g_serializer = nullptr;
 
     SocketAbstraction::SocketCleanup();
+
     spdlog::info("Broker exited cleanly");
 
     return 0;
