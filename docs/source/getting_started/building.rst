@@ -54,18 +54,6 @@ To explicitly enable shared library builds, pass the following option to task:
 
    build SHARED=ON
 
-Note that this may cause issues when building the whl for Python bindings. If you really want a shared library with the whl, you'll need to run the following on Linux and MacOS
-
-.. code-block:: bash
-
-   python3 -m pip auditwheel repair /path/to/whl.whl --add-path /path/to/shared/libraries/
-
-and this on Windows
-
-.. code-block:: bash
-
-   python -m pip delvewheel repair /path/to/whl.whl --add-path /path/to/shared/libraries/
-
 Troubleshooting
 ---------------
 
