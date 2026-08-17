@@ -9,10 +9,10 @@ Requirements
 * Python >= 3.11 (optional, for Python bindings)
 * Supported OS: Linux, Windows, MacOS
 
-Building the Core Library
+Building the Core Libraries
 -------------------------
 
-The library can be built using task
+The libraries can be built using task
 
 .. code-block:: bash
 
@@ -20,7 +20,16 @@ The library can be built using task
    cd Minimal-Middleware
    task build
 
-This will build the core library. There are several variations to this build which can be made by passing various arguments to the task command
+This will build the core libraries, which includes the following:
+
+.. code-block:: bash
+
+   libmmw.a
+   libmmw_core.a
+
+The ``libmmw_core.a`` contains the core networking and serialization code for MMW. The ``libmmw.a`` contains the actual MMW API function definitions.
+
+There are several variations to this build which can be made by passing various arguments to the task command
 
 .. code-block:: bash
 
