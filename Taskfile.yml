@@ -20,13 +20,13 @@ tasks:
     desc: Build everything
     cmds:
       - task: build
-        vars: { BROKER: ON, EXAMPLES: ON, PYTHON: ON }
+        vars: { BROKER: ON, EXAMPLES: ON, PYTHON: ON, SHARED: "{{.SHARED}}" }
 
   build:
     desc: Build MMW with optional flags
     cmds:
       - task: cmake:configure
-        vars: { BROKER: "{{.BROKER}}", EXAMPLES: "{{.EXAMPLES}}", PYTHON: "{{.PYTHON}}" }
+        vars: { BROKER: "{{.BROKER}}", EXAMPLES: "{{.EXAMPLES}}", PYTHON: "{{.PYTHON}}", SHARED: "{{.SHARED}}" }
       - task: cmake:build
       - task: python:install
         vars: { PYTHON: '{{.PYTHON}}' }
@@ -43,7 +43,7 @@ tasks:
         -DBUILD_SAMPLE_APPS={{.EXAMPLES}}
         -DBUILD_PYTHON_MODULE={{.PYTHON}}
         -D{{.SERIALIZER}}=ON
-        -DBUILD_SHARED_LIBRARY={{.SHARED}}
+        -DBUILD_SHARED_LIBS={{.SHARED}}
         {{if eq OS "windows"}}
         -DCMAKE_TOOLCHAIN_FILE={{.VCPKG_PATH}}
         {{end}}
