@@ -7,6 +7,7 @@ vars:
   PYTHON: '{{.PYTHON | default "OFF"}}'
   SERIALIZER: '{{.SERIALIZER | default "CEREAL_SERIALIZER"}}'
   SHARED: '{{.SHARED | default "OFF"}}'
+  CXX: '{{.CXX | default "OFF"}}'
   # Platform detection logic
   PYTHON_EXE: '{{if eq OS "windows"}}python{{else}}python3{{end}}'
   VCPKG_PATH: 'C:/vcpkg/scripts/buildsystems/vcpkg.cmake'
@@ -20,13 +21,13 @@ tasks:
     desc: Build everything
     cmds:
       - task: build
-        vars: { BROKER: ON, EXAMPLES: ON, PYTHON: ON, SHARED: "{{.SHARED}}" }
+        vars: { BROKER: ON, EXAMPLES: ON, PYTHON: ON, SHARED: "{{.SHARED}}", CXX: "{{.CXX}}" }
 
   build:
     desc: Build MMW with optional flags
     cmds:
       - task: cmake:configure
-        vars: { BROKER: "{{.BROKER}}", EXAMPLES: "{{.EXAMPLES}}", PYTHON: "{{.PYTHON}}", SHARED: "{{.SHARED}}" }
+        vars: { BROKER: "{{.BROKER}}", EXAMPLES: "{{.EXAMPLES}}", PYTHON: "{{.PYTHON}}", SHARED: "{{.SHARED}}", CXX: "{{.CXX}}" }
       - task: cmake:build
       - task: python:install
         vars: { PYTHON: '{{.PYTHON}}' }
@@ -44,6 +45,7 @@ tasks:
         -DBUILD_PYTHON_MODULE={{.PYTHON}}
         -D{{.SERIALIZER}}=ON
         -DBUILD_SHARED_LIBS={{.SHARED}}
+        -DMMW_CXX={{.CXX}}
         {{if eq OS "windows"}}
         -DCMAKE_TOOLCHAIN_FILE={{.VCPKG_PATH}}
         {{end}}

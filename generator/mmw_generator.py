@@ -48,19 +48,23 @@ def generate_template(template, output_name, msg_name, msg_data):
 def main():
     print("MMW Generator Started...")
     
-    # Initialize Jinja environment
+    # initialize jinja environment
     env = Environment(loader=FileSystemLoader("templates/"))
+
+    # initialize the templates
     message_template = env.get_template("message_template.h")
     publisher_header_template = env.get_template("publisher_h_template.h")
     publisher_cpp_template = env.get_template("publisher_cpp_template.h")
+    subscriber_header_template = env.get_template("subscriber_h_template.h")
+    subscriber_cpp_template = env.get_template("subscriber_cpp_template.h")
 
-    # Parse the yml idls
+    # parse the yml idls
     idls = [p for p in Path('../idls/').iterdir() if p.is_file()]
 
-    # Generate headers for each individual idl
+    # generate headers for each individual idl
     for idl in idls:
 
-        # Need this for .gitkeep and any other non idl files
+        # need this for .gitkeep and any other non idl files
         if idl.suffix == ".yml":
             with open(idl, "r") as file:
                 messages_dict = yaml.safe_load(file)
@@ -76,6 +80,12 @@ def main():
 
                 # generate the publisher cpp
                 generate_template(publisher_cpp_template, f"{msg_name}Publisher.cpp", msg_name, msg_data)
+
+                # generate the subscriber header
+                generate_template(subscriber_header_template, f"{msg_name}Subscriber.h", msg_name, msg_data)
+
+                # generate the subscriber cpp
+                generate_template(subscriber_cpp_template, f"{msg_name}Subscriber.cpp", msg_name, msg_data)
 
 
 if __name__ == "__main__":

@@ -58,11 +58,16 @@ add_library(
     ${CMAKE_CURRENT_LIST_DIR}/src/network/SocketAbstraction.cpp
 )
 
+if(MMW_CXX)
+    file(GLOB MMW_CXX_SOURCES "generator/output/*")
+endif(MMW_CXX)
+
 # Create the mmw library
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 add_library(
     mmw
     ${CMAKE_CURRENT_LIST_DIR}/src/MMW.cpp
+    ${MMW_CXX_SOURCES}
 )
 
 # Create an alias target
@@ -136,6 +141,16 @@ if(BUILD_SAMPLE_APPS)
         target_link_libraries(publish_raw PRIVATE mmw pthread)
         target_link_libraries(subscribe_raw PRIVATE mmw pthread)
     endif()
+
+    if(MMW_CXX)
+        add_executable(testMessagePublish ${CMAKE_CURRENT_LIST_DIR}/app/generated_cpp/TestMessagePublish.cpp)
+        target_include_directories(testMessagePublish PRIVATE ${CMAKE_CURRENT_LIST_DIR}/ ${CMAKE_CURRENT_LIST_DIR}/generator/output/)
+        target_link_libraries(testMessagePublish PRIVATE mmw pthread)
+
+        add_executable(testMessageSubscribe ${CMAKE_CURRENT_LIST_DIR}/app/generated_cpp/TestMessageSubscribe.cpp)
+        target_include_directories(testMessageSubscribe PRIVATE ${CMAKE_CURRENT_LIST_DIR}/ ${CMAKE_CURRENT_LIST_DIR}/generator/output/)
+        target_link_libraries(testMessageSubscribe PRIVATE mmw pthread)
+    endif(MMW_CXX)
 endif()
 
 # Build Python module if requested

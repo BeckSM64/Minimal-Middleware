@@ -1,3 +1,4 @@
+#pragma once
 #include <cstdint>
 {% for field in fields %}
     {%- if field.type in required_headers_dict.keys() %}
