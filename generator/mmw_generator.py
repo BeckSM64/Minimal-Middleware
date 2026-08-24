@@ -3,6 +3,29 @@ import yaml
 from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
 
+cpp_type_dict = {
+    "bool": "bool",
+    "int8": "int8_t",
+    "uint8": "uint8_t",
+    "int16": "int16_t",
+    "uint16": "uint16_t",
+    "int32": "int32_t",
+    "uint32": "uint32_t",
+    "int64": "int64_t",
+    "uint64": "uint64_t",
+    "float32": "float",
+    "float": "float",
+    "float64": "double",
+    "double": "double",
+    "string": "std::string",
+    "bytes": "std::vector<uint8_t>"
+}
+
+required_headers_dict = {
+    "string" : "#include <string>",
+    "bytes" : "#include <vector>"
+}
+
 def main():
     print("MMW Generator Started...")
     
@@ -23,10 +46,13 @@ def main():
 
             # Build the output files
             for msg_name, msg_data in messages_dict.items():
-                # Render template using clean variable names
+
+                # Render template
                 output = template.render(
                     struct_name=msg_name, 
-                    fields=msg_data.get("fields", [])
+                    fields=msg_data.get("fields", []),
+                    required_headers_dict=required_headers_dict,
+                    cpp_type_dict=cpp_type_dict
                 )
 
                 # Save the generated files
