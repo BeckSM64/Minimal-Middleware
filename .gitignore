@@ -10,3 +10,5 @@ docs/build/
 docs/doxygen/
 docs/source/api/cpp/
 latex/
+generator/output/*.h
+idls/*.yml
