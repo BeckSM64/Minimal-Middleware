@@ -26,12 +26,33 @@ required_headers_dict = {
     "bytes" : "#include <vector>"
 }
 
+def generate_template(template, output_name, msg_name, msg_data):
+    print("Generating message header")
+
+    # Render template
+    output = template.render(
+        message_name=msg_name, 
+        fields=msg_data.get("fields", []),
+        required_headers_dict=required_headers_dict,
+        cpp_type_dict=cpp_type_dict
+    )
+
+    # Save the generated files
+    output_path = f"output/{output_name}"
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(output)
+        
+    print(f"Generated: {output_path}")
+
+
 def main():
     print("MMW Generator Started...")
     
     # Initialize Jinja environment
-    env = Environment(loader=FileSystemLoader("templates"))
-    template = env.get_template("message_template.h")
+    env = Environment(loader=FileSystemLoader("templates/"))
+    message_template = env.get_template("message_template.h")
+    publisher_header_template = env.get_template("publisher_h_template.h")
+    publisher_cpp_template = env.get_template("publisher_cpp_template.h")
 
     # Parse the yml idls
     idls = [p for p in Path('../idls/').iterdir() if p.is_file()]
@@ -47,20 +68,15 @@ def main():
             # Build the output files
             for msg_name, msg_data in messages_dict.items():
 
-                # Render template
-                output = template.render(
-                    struct_name=msg_name, 
-                    fields=msg_data.get("fields", []),
-                    required_headers_dict=required_headers_dict,
-                    cpp_type_dict=cpp_type_dict
-                )
+                # generate the message header
+                generate_template(message_template, f"{msg_name}.h", msg_name, msg_data)
 
-                # Save the generated files
-                output_path = f"output/{msg_name}.h"
-                with open(output_path, "w", encoding="utf-8") as f:
-                    f.write(output)
-                    
-                print(f"Generated: {output_path}")
+                # generate the publisher header
+                generate_template(publisher_header_template, f"{msg_name}Publisher.h", msg_name, msg_data)
+
+                # generate the publisher cpp
+                generate_template(publisher_cpp_template, f"{msg_name}Publisher.cpp", msg_name, msg_data)
+
 
 if __name__ == "__main__":
     main()

@@ -5,7 +5,7 @@
     {% endif %}
 {%- endfor %}
 
-struct {{ struct_name }} {
+struct {{ message_name }} {
     {%- for field in fields %}
     {{ cpp_type_dict[field.type] }} {{ field.name }};
     {%- endfor %}
