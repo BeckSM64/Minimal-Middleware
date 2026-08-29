@@ -88,6 +88,7 @@ void mmw_set_log_level(MmwLogLevel level) {
 MmwResult mmw_initialize(const char* brokerIp, unsigned short port) {
 
     if (!brokerIp || port == 0) {
+        spdlog::error("No broker IP or port provided");
         return MMW_ERROR;
     }
 
