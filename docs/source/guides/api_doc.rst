@@ -5,13 +5,13 @@ MMW provides a number of functions via the C-Compatible API to assist in publish
 
 Logging
 -------
-::
+.. code-block:: c
 
     void mmw_set_log_level(MmwLogLevel level);
 
 This function allows the user to choose from various log levels, for debug purposes, within their application. The following log levels are supported via the ``MmwLogLevel`` enum
 
-::
+.. code-block:: c
 
     typedef enum {
         MMW_LOG_LEVEL_OFF,
@@ -22,11 +22,9 @@ This function allows the user to choose from various log levels, for debug purpo
         MMW_LOG_LEVEL_TRACE
     } MmwLogLevel;
 
-::
-
 Initialization
 --------------
-::
+.. code-block:: c
 
     MmwResult mmw_initialize(const char* brokerIp, unsigned short port);
 
@@ -34,25 +32,25 @@ This function is responsible for setting the IP address and port of the broker, 
 
 Publishers
 ----------
-::
+.. code-block:: c
 
     MmwResult mmw_create_publisher(const char* topic);
 
 Publishers can be created by calling this create publisher call. It takes a topic as an argument. This will create a dedicated TCP connection to the broker. It must be called before any messages can be published on a topic. Returns a ``MmwResult``.
 
-::
+.. code-block:: c
 
     MmwResult mmw_publish(const char* topic, const char* message, MmwReliability reliability);
 
 Publishes a message as a string over a specified topic. Messages can be published as either reliable or best effort. This is configured via the ``MmwReliability`` enum. Returns a ``MmwResult``.
 
-::
+.. code-block:: c
 
     MmwResult mmw_publish_raw(const char* topic, void* message, size_t size, MmwReliability reliability);
 
 Publishes a message as raw bytes over a specified topic. Messages should be structured as basic C structs containing network safe types. Must also provide the size of the structure being sent, as well as the desired reliability of the message via the ``MmwReliability`` enum. Returns a ``MmwResult``.
 
-::
+.. code-block:: c
 
     MmwResult mmw_delete_publisher(const char* topic);
 
@@ -60,19 +58,19 @@ Deletes a publihser. Takes a topic as an argument to delete the associated publi
 
 Subscribers
 -----------
-::
+.. code-block:: c
 
     MmwResult mmw_create_subscriber(const char* topic, void (*mmw_callback)(const char*, const char*));
 
 Creates a subscriber that receives string messages. Takes a topic and a callback as arguments. The callback is a simple C function which takes a string topic and a string message as arguments. Upon receiving an incoming string message from a publisher over the specified topic, the callback will be fired and execute whatever code it contains. The ``mmw_create_subscriber`` call returns a ``MmwResult``.
 
-::
+.. code-block:: c
 
     MmwResult mmw_create_subscriber_raw(const char* topic, void (*mmw_callback)(const char*, void*));
 
 Creates a subscriber that receives raw byte messages. Takes a topic and a callback as arguments. The callback is a simple C function which takes a string topic and a void pointer message as arguments. Upon receiving an incoming raw byte message from a publisher over the specified topic, the callback will be fired and execute whatever code it contains. The ``mmw_create_subscriber_raw`` call returns a ``MmwResult``.
 
-::
+.. code-block:: c
 
     MmwResult mmw_delete_subscriber(const char* topic);
 
@@ -81,7 +79,7 @@ Deletes a subscriber. Takes a topic as an argument to delete the associated subs
 Global
 ------
 
-::
+.. code-block:: c
 
     MmwResult mmw_cleanup();
 
