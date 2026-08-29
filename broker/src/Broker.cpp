@@ -258,8 +258,8 @@ int main(int argc, char *argv[]) {
 
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd == -1) {
-        perror("socket");
-        return 1;
+        spdlog::error("Failed to create socket");
+        return -1;
     }
 
     int opt = 1;
@@ -284,12 +284,12 @@ int main(int argc, char *argv[]) {
     address.sin_port = htons(port);
 
     if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) < 0) {
-        perror("bind");
-        return 1;
+        spdlog::error("Failed to bind");
+        return -1;
     }
     if (listen(server_fd, 16) < 0) {
-        perror("listen");
-        return 1;
+        spdlog::error("Failed to listen");
+        return -1;
     }
 
     spdlog::info("Broker listening on port {}", port);
@@ -371,7 +371,7 @@ int main(int argc, char *argv[]) {
             if (errno == EINTR) {
                 continue;
             }
-            perror("accept");
+            spdlog::error("Failed to accept");
             continue;
         }
 
