@@ -78,7 +78,7 @@ jobs:
       - name: Run smoke tests
         run: |
           cd build
-          ./broker &
+          ./mmw_broker &
           BROKER_PID=$!
           ./subscribe &
           SUB_PID=$!
