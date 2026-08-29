@@ -9,7 +9,7 @@
 project = 'MMW'
 copyright = '2026, Shane Harrington'
 author = 'Shane Harrington'
-release = 'v2.0.0'
+release = 'v3.2.1'
 
 # Add these extensions
 extensions = [
