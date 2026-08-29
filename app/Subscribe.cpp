@@ -22,12 +22,20 @@ int main() {
     mmw_set_log_level(MMW_LOG_LEVEL_TRACE);
 
     if (mmw_initialize("127.0.0.1", 5000) != MMW_OK) {
-        return 1;
+        spdlog::error("Failed to initialize MMW");
+        return -1;
     }
 
     // Subscribe
-    mmw_create_subscriber("Test Topic", on_message);
-    mmw_create_subscriber("Test Topic 2", on_message);
+    if (mmw_create_subscriber("Test Topic", on_message) != MMW_OK) {
+        spdlog::error("Failed to create MMW subscriber");
+        return -1;
+    }
+
+    if (mmw_create_subscriber("Test Topic 2", on_message) != MMW_OK) {
+        spdlog::error("Failed to create MMW subscriber");
+        return -1;
+    }
 
     spdlog::info("Subscriber running. Waiting for messages...");
 
@@ -36,11 +44,20 @@ int main() {
     }
 
     spdlog::info("Deleting subscribers...");
-    mmw_delete_subscriber("Test Topic");
-    mmw_delete_subscriber("Test Topic 2");
+    if (mmw_delete_subscriber("Test Topic") != MMW_OK) {
+        spdlog::error("Failed to delete MMW subscriber");
+        return -1;
+    }
 
-    // Optional: still safe for global cleanup (serializer, maps, joins)
-    mmw_cleanup();
+    if (mmw_delete_subscriber("Test Topic 2") != MMW_OK) {
+        spdlog::error("Failed to delete MMW subscriber");
+        return -1;
+    }
+
+    if (mmw_cleanup() != MMW_OK) {
+        spdlog::error("Failed to cleanup MMW resources");
+        return -1;
+    }
 
     spdlog::info("Exit.");
     return 0;

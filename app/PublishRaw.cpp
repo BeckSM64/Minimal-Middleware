@@ -1,4 +1,5 @@
 #include <cstring>
+#include <spdlog/spdlog.h>
 #include "MMW.h"
 
 typedef struct {
@@ -21,13 +22,27 @@ int main() {
     testRawMessageStruct.testShort = 10;
 
     // Initialize library settings
-    mmw_initialize("127.0.0.1", 5000);
-
-    mmw_create_publisher("Raw Message Topic");
-
-    for (int i = 0; i < 10000; i++) {
-        mmw_publish_raw("Raw Message Topic", &testRawMessageStruct, sizeof(testRawMessageStruct), MMW_RELIABLE);
+    if (mmw_initialize("127.0.0.1", 5000) != MMW_OK) {
+        spdlog::error("Failed to initialize MMW");
+        return -1;
     }
 
-    mmw_cleanup();
+    // Create publisher
+    if (mmw_create_publisher("Raw Message Topic") != MMW_OK) {
+        spdlog::error("Failed to create MMW publisher");
+        return -1;
+    }
+
+    // Publish test messages
+    for (int i = 0; i < 10000; i++) {
+        if (mmw_publish_raw("Raw Message Topic", &testRawMessageStruct, sizeof(testRawMessageStruct), MMW_RELIABLE) != MMW_OK) {
+            spdlog::error("Failed to publish MMW message");
+        }
+    }
+
+    // Cleanup mmw resources
+    if (mmw_cleanup() != MMW_OK) {
+        spdlog::error("Failed to cleanup MMW resources");
+        return -1;
+    }
 }
