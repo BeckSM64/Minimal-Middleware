@@ -121,9 +121,14 @@ Subscribers
 
 Creates a subscriber that receives string messages. Takes a topic and a callback as arguments. The callback is a simple C function which takes a string topic and a string message as arguments. Upon receiving an incoming string message from a publisher over the specified topic, the callback will be fired and execute whatever code it contains. The ``mmw_create_subscriber`` call returns a ``MmwResult``.
 
+
+**C API**
+
 .. code-block:: c
 
     MmwResult mmw_create_subscriber_raw(const char* topic, void (*mmw_callback)(const char*, void*));
+
+**Python**
 
 .. code-block:: python
 
