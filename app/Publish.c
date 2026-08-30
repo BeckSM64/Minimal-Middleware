@@ -3,14 +3,22 @@
 int main() {
 
     // Initialize library settings
-    mmw_initialize("127.0.0.1", 5000);
+    if (mmw_initialize("127.0.0.1", 5000) != MMW_OK) {
+        return -1;
+    }
 
     // Create publishers
-    mmw_create_publisher("Test Topic");
+    if (mmw_create_publisher("Test Topic") != MMW_OK) {
+        return -1;
+    }
 
     // Publish test message
-    mmw_publish("Test Topic", "This was published by the publish_c sample application", MMW_BEST_EFFORT);
+    if (mmw_publish("Test Topic", "This was published by the publish_c sample application", MMW_BEST_EFFORT) != MMW_OK) {
+        return -1;
+    }
 
     // Clean up publishers
-    mmw_cleanup();
+    if (mmw_cleanup() != MMW_OK) {
+        return -1;
+    }
 }

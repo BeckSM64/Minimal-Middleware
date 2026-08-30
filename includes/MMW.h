@@ -50,7 +50,8 @@ void mmw_set_log_level(MmwLogLevel level);
  * Must be called before creating publishers or subscribers.
  * Optionally loads configuration from a file.
  *
- * @param configPath Path to configuration file (can be NULL for defaults).
+ * @param brokerIp IPv4 Address of the broker.
+ * @param port Port the broker is accepting connections on.
  * @return MMW_OK on success, MMW_ERROR on failure.
  */
 MmwResult mmw_initialize(const char* brokerIp, unsigned short port);

@@ -31,8 +31,6 @@ tasks:
       - task: python:install
         vars: { PYTHON: '{{.PYTHON}}' }
 
-  # --- Internal Helper Tasks ---
-
   cmake:configure:
     internal: true
     cmds:
@@ -47,18 +45,16 @@ tasks:
         {{if eq OS "windows"}}
         -DCMAKE_TOOLCHAIN_FILE={{.VCPKG_PATH}}
         {{end}}
+        -DCMAKE_BUILD_TYPE=Debug
 
   cmake:build:
     internal: true
     cmds:
-      - cmake --build build/ --config Release -j
+      - cmake --build build/ --config Debug -j
 
   python:install:
     internal: true
-    # dir: python
     dir: ./
-    # This 'run: once' prevents double-running if called multiple times
-    # The 'status' check skips the task if PYTHON is not ON
     status:
       - test "{{.PYTHON}}" != "ON"
     cmds:

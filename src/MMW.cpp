@@ -88,6 +88,7 @@ void mmw_set_log_level(MmwLogLevel level) {
 MmwResult mmw_initialize(const char* brokerIp, unsigned short port) {
 
     if (!brokerIp || port == 0) {
+        spdlog::error("No broker IP or port provided");
         return MMW_ERROR;
     }
 
@@ -110,18 +111,33 @@ MmwResult mmw_initialize(const char* brokerIp, unsigned short port) {
 MmwResult mmw_create_publisher(const char* topic) {
     SocketAbstraction::SocketStartup();
 
+    // Check that the serializer was set via mmw_initialize
+    if (g_serializer == nullptr) {
+        spdlog::error("Serializer not set. You may have forgotten to call mmw_initialize");
+        return MMW_ERROR;
+    }
+
+    // Check return or socket call
     int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (sock_fd == -1) {
-        perror("socket");
+        spdlog::error("Failed to create socket");
         return MMW_ERROR;
     }
 
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(brokerPort);
-    SocketAbstraction::InetPtonAbstraction(AF_INET, hostname.c_str(), &server_addr.sin_addr);
 
+    // Check return of inet_pton
+    int rc = SocketAbstraction::InetPtonAbstraction(AF_INET, hostname.c_str(), &server_addr.sin_addr);
+    if (rc != 1) {
+        spdlog::error("Invalid IP address provided: {}", hostname);
+        SocketAbstraction::SocketClose(sock_fd);
+        return MMW_ERROR;
+    }
+
+    // Check return of connect
     if (connect(sock_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
-        perror("connect");
+        spdlog::error("Failed to connect to broker");
         SocketAbstraction::SocketClose(sock_fd);
         return MMW_ERROR;
     }
@@ -223,15 +239,31 @@ void heartbeatThreadFunc(int sock_fd, std::atomic<bool>* runningFlag, int interv
 MmwResult createSubscriberInternal(const char* topic, std::function<void(const MmwMessage&)> callback) {
     SocketAbstraction::SocketStartup();
 
+    // Check that the serializer was set via mmw_initialize
+    if (g_serializer == nullptr) {
+        spdlog::error("Serializer not set. You may have forgotten to call mmw_initialize");
+        return MMW_ERROR;
+    }
+
+    // Check return of socket call
     int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock_fd == -1) { perror("socket"); return MMW_ERROR; }
+    if (sock_fd == -1) {
+        spdlog::error("Failed to create socket");
+        return MMW_ERROR;
+    }
 
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(brokerPort);
-    SocketAbstraction::InetPtonAbstraction(AF_INET, hostname.c_str(), &server_addr.sin_addr);
+    int rc = SocketAbstraction::InetPtonAbstraction(AF_INET, hostname.c_str(), &server_addr.sin_addr);
+    if (rc != 1) {
+        spdlog::error("Invalid IP address provided: {}", hostname);
+        SocketAbstraction::SocketClose(sock_fd);
+        return MMW_ERROR;
+    }
 
+    // Check return of connect call
     if (connect(sock_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
-        perror("connect");
+        spdlog::error("Failed to connect to broker");
         SocketAbstraction::SocketClose(sock_fd);
         return MMW_ERROR;
     }
@@ -287,6 +319,7 @@ MmwResult mmw_create_subscriber_raw(const char* topic, void (*cb)(const char*, v
 MmwResult mmw_publish(const char* topic, const char* payload, MmwReliability reliability) {
     auto it = publisherTopicToSocketFdMap.find(topic);
     if (it == publisherTopicToSocketFdMap.end()) {
+        spdlog::error("No existing publisher for topic: {}", topic);
         return MMW_ERROR;
     }
 
@@ -310,6 +343,7 @@ MmwResult mmw_publish(const char* topic, const char* payload, MmwReliability rel
 MmwResult mmw_publish_raw(const char* topic, void* payload, size_t size, MmwReliability reliability) {
     auto it = publisherTopicToSocketFdMap.find(topic);
     if (it == publisherTopicToSocketFdMap.end()) {
+        spdlog::error("No existing publisher for topic: {}", topic);
         return MMW_ERROR;
     }
 
