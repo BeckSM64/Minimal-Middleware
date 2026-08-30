@@ -319,6 +319,7 @@ MmwResult mmw_create_subscriber_raw(const char* topic, void (*cb)(const char*, v
 MmwResult mmw_publish(const char* topic, const char* payload, MmwReliability reliability) {
     auto it = publisherTopicToSocketFdMap.find(topic);
     if (it == publisherTopicToSocketFdMap.end()) {
+        spdlog::error("No existing publisher for topic: {}", topic);
         return MMW_ERROR;
     }
 
@@ -342,6 +343,7 @@ MmwResult mmw_publish(const char* topic, const char* payload, MmwReliability rel
 MmwResult mmw_publish_raw(const char* topic, void* payload, size_t size, MmwReliability reliability) {
     auto it = publisherTopicToSocketFdMap.find(topic);
     if (it == publisherTopicToSocketFdMap.end()) {
+        spdlog::error("No existing publisher for topic: {}", topic);
         return MMW_ERROR;
     }
 
