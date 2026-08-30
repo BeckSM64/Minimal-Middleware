@@ -111,6 +111,12 @@ MmwResult mmw_initialize(const char* brokerIp, unsigned short port) {
 MmwResult mmw_create_publisher(const char* topic) {
     SocketAbstraction::SocketStartup();
 
+    // Check that the serializer was set via mmw_initialize
+    if (g_serializer == nullptr) {
+        spdlog::error("Serializer not set. You may have forgotten to call mmw_initialize");
+        return MMW_ERROR;
+    }
+
     // Check return or socket call
     int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (sock_fd == -1) {
@@ -232,6 +238,12 @@ void heartbeatThreadFunc(int sock_fd, std::atomic<bool>* runningFlag, int interv
 
 MmwResult createSubscriberInternal(const char* topic, std::function<void(const MmwMessage&)> callback) {
     SocketAbstraction::SocketStartup();
+
+    // Check that the serializer was set via mmw_initialize
+    if (g_serializer == nullptr) {
+        spdlog::error("Serializer not set. You may have forgotten to call mmw_initialize");
+        return MMW_ERROR;
+    }
 
     // Check return of socket call
     int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
