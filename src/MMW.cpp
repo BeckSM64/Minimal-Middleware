@@ -12,17 +12,24 @@
 #include "IMmwMessageSerializer.h"
 #include "SerializerAbstraction.h"
 #include "SocketAbstraction.h"
+#include "ITransport.h"
 
 static std::string hostname = "127.0.0.1";
 static int brokerPort = 5000;
 static struct sockaddr_in server_addr;
 static std::atomic<bool> running{false};
+
+static std::map<std::string, ITransport> publisherTopicToTransportMap;
+static std::map<std::string, ITransport> subscriberTopicToTransportMap;
+
 static std::map<std::string, int> publisherTopicToSocketFdMap;
 static std::map<std::string, int> subscriberTopicToSocketFdMap;
 static std::mutex socketListMutex;
+
 static std::vector<std::thread> subscriberThreads;
 static std::vector<std::atomic<bool>*> subscriberRunFlags;
 static IMmwMessageSerializer* g_serializer = nullptr;
+
 static std::map<int, std::mutex> socketSendMutexes;
 static std::mutex socketSendMutexMapLock;
 
