@@ -19,8 +19,9 @@ static int brokerPort = 5000;
 static struct sockaddr_in server_addr;
 static std::atomic<bool> running{false};
 
-static std::map<std::string, ITransport> publisherTopicToTransportMap;
-static std::map<std::string, ITransport> subscriberTopicToTransportMap;
+static std::map<std::string, ITransport *> publisherTopicToTransportMap;
+static std::map<std::string, ITransport *> subscriberTopicToTransportMap;
+static std::mutex transportListMutex;
 
 static std::map<std::string, int> publisherTopicToSocketFdMap;
 static std::map<std::string, int> subscriberTopicToSocketFdMap;
@@ -166,6 +167,9 @@ MmwResult mmw_create_publisher(const char* topic) {
     {
         std::lock_guard<std::mutex> lock(socketListMutex);
         publisherTopicToSocketFdMap[topic] = sock_fd;
+
+        std::lock_guard<std::mutex> lock(transportListMutex);
+        publisherTopicToTransportMap[topic] = nullptr; // TODO: Actually insert an instance of ITransport (ie. TcpTransport or BeastTransport)
     }
 
     spdlog::info("Publisher connected to broker at {}:{}", hostname, brokerPort);
