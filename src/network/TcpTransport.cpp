@@ -57,7 +57,48 @@ MmwResult TcpTransport::Send(const std::string& data) {
 
     return MMW_OK;
 }
+#include <iostream>
+MmwResult TcpTransport::Recv(std::string& data)
+{
+    uint32_t netLen;
 
-MmwResult TcpTransport::Recv() {
+    int n = SocketAbstraction::Recv(
+        m_sockFd,
+        &netLen,
+        sizeof(netLen),
+        MSG_WAITALL
+    );
+
+    if (n <= 0) {
+        return MMW_ERROR;
+    }
+
+    uint32_t msgLen = ntohl(netLen);
+
+    if (msgLen > 1024 * 1024) {
+        spdlog::error("Received message too large: {} bytes", msgLen);
+        return MMW_ERROR;
+    }
+
+    if (msgLen == 0) {
+        data.clear();
+        return MMW_OK;
+    }
+
+    std::vector<char> buf(msgLen);
+
+    n = SocketAbstraction::Recv(
+        m_sockFd,
+        buf.data(),
+        msgLen,
+        MSG_WAITALL
+    );
+
+    if (n <= 0) {
+        return MMW_ERROR;
+    }
+
+    data.assign(buf.data(), msgLen);
+
     return MMW_OK;
 }

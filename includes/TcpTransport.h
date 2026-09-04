@@ -8,7 +8,7 @@ public:
     ~TcpTransport();
     MmwResult Initialize() override;
     MmwResult Send(const std::string& data) override;
-    MmwResult Recv() override;
+    MmwResult Recv(std::string& data) override;
 
 private:
     int m_sockFd = -1;
