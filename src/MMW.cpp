@@ -183,11 +183,7 @@ MmwResult mmw_create_publisher(const char* topic) {
 }
 
 typedef std::function<void(const MmwMessage&)> SubscriberCallback;
-void subscriberThreadFunc(
-    ITransport* transport,
-    std::atomic<bool>* runningFlag,
-    SubscriberCallback callback)
-{
+void subscriberThreadFunc(ITransport* transport, std::atomic<bool>* runningFlag, SubscriberCallback callback) {
     while (*runningFlag) {
 
         std::string data;
