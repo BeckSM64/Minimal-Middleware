@@ -57,9 +57,8 @@ MmwResult TcpTransport::Send(const std::string& data) {
 
     return MMW_OK;
 }
-#include <iostream>
-MmwResult TcpTransport::Recv(std::string& data)
-{
+
+MmwResult TcpTransport::Recv(std::string& data) {
     uint32_t netLen;
 
     int n = SocketAbstraction::Recv(
@@ -87,12 +86,7 @@ MmwResult TcpTransport::Recv(std::string& data)
 
     std::vector<char> buf(msgLen);
 
-    n = SocketAbstraction::Recv(
-        m_sockFd,
-        buf.data(),
-        msgLen,
-        MSG_WAITALL
-    );
+    n = SocketAbstraction::Recv(m_sockFd, buf.data(), msgLen, MSG_WAITALL);
 
     if (n <= 0) {
         return MMW_ERROR;

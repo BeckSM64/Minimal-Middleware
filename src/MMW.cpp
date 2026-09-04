@@ -216,14 +216,8 @@ void subscriberThreadFunc(
                     ackMsg.type = "ack";
                     ackMsg.topic = msg.topic;
 
-                    if (sendMessage(
-                            transport,
-                            g_serializer->serialize(ackMsg))
-                        == MMW_ERROR)
-                    {
-                        spdlog::error(
-                            "Failed to send ACK for {}",
-                            ackMsg.messageId);
+                    if (sendMessage(transport, g_serializer->serialize(ackMsg)) == MMW_ERROR) {
+                        spdlog::error("Failed to send ACK for {}", ackMsg.messageId);
                     }
                 }
 
@@ -231,9 +225,7 @@ void subscriberThreadFunc(
             }
 
         } catch (const std::exception& e) {
-            spdlog::error(
-                "Subscriber failed to deserialize: {}",
-                e.what());
+            spdlog::error("Subscriber failed to deserialize: {}", e.what());
         }
     }
 
