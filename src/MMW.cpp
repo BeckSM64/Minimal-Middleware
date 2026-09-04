@@ -152,45 +152,15 @@ MmwResult mmw_create_publisher(const char* topic) {
         return MMW_ERROR;
     }
 
-    // Check return or socket call
-    // int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
-    // if (sock_fd == -1) {
-    //     spdlog::error("Failed to create socket");
-    //     return MMW_ERROR;
-    // }
-
-    // server_addr.sin_family = AF_INET;
-    // server_addr.sin_port = htons(brokerPort);
-
-    // // Check return of inet_pton
-    // int rc = SocketAbstraction::InetPtonAbstraction(AF_INET, hostname.c_str(), &server_addr.sin_addr);
-    // if (rc != 1) {
-    //     spdlog::error("Invalid IP address provided: {}", hostname);
-    //     SocketAbstraction::SocketClose(sock_fd);
-    //     return MMW_ERROR;
-    // }
-
-    // // Check return of connect
-    // if (connect(sock_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
-    //     spdlog::error("Failed to connect to broker");
-    //     SocketAbstraction::SocketClose(sock_fd);
-    //     return MMW_ERROR;
-    // }
     ITransport *transport = new TcpTransport();
+
+    if (transport->Initialize() == MMW_ERROR) {
+        return MMW_ERROR;
+    }
 
     // Registration message
     MmwMessage msg{0, "register", topic, "publisher"};
-    // try {
-    //     if (sendMessage(sock_fd, g_serializer->serialize(msg)) == MMW_ERROR) {
-    //         spdlog::error("Failed to send registration for publisher: {}", topic);
-    //         SocketAbstraction::SocketClose(sock_fd);
-    //         return MMW_ERROR;
-    //     }
-    // } catch (const std::exception& e) {
-    //     spdlog::error("Publisher serialization failed for {}: {}", topic, e.what());
-    //     SocketAbstraction::SocketClose(sock_fd);
-    //     return MMW_ERROR;
-    // }
+
     try {
         if (sendMessage(transport, g_serializer->serialize(msg)) == MMW_ERROR) {
             spdlog::error("Failed to send registration for publisher: {}", topic);
@@ -204,15 +174,8 @@ MmwResult mmw_create_publisher(const char* topic) {
     }
 
     {
-        // std::lock_guard<std::mutex> lock(socketListMutex);
-        // publisherTopicToSocketFdMap[topic] = sock_fd;
-
         std::lock_guard<std::mutex> transportLock(transportListMutex);
         publisherTopicToTransportMap[topic] = transport;
-    }
-    
-    if (transport->Initialize() == MMW_ERROR) {
-        return MMW_ERROR;
     }
     
     spdlog::info("Publisher connected to broker at {}:{}", hostname, brokerPort);
@@ -326,7 +289,6 @@ MmwResult createSubscriberInternal(const char* topic, std::function<void(const M
 
     {
         std::lock_guard<std::mutex> lock(socketListMutex);
-        // subscriberTopicToSocketFdMap[topic] = sock_fd;
         subscriberTopicToTransportMap[topic] = transport;
     }
 
