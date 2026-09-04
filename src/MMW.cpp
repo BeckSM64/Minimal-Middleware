@@ -76,16 +76,6 @@ inline MmwResult sendMessage(ITransport *transport, const std::string& data) {
 
     std::lock_guard<std::mutex> lock(*mtx);
 
-    // uint32_t len = htonl(data.size());
-
-    // if (SocketAbstraction::Send(sock_fd, &len, sizeof(len), 0) != sizeof(len)) {
-    //     return MMW_ERROR;
-    // }
-
-    // if (SocketAbstraction::Send(sock_fd, data.data(), data.size(), 0) != (ssize_t)data.size()) {
-    //     return MMW_ERROR;
-    // }
-
     transport->Send(data);
 
     return MMW_OK;
