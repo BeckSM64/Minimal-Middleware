@@ -13,6 +13,7 @@
 #include "SerializerAbstraction.h"
 #include "SocketAbstraction.h"
 #include "ITransport.h"
+#include "TcpTransport.h"
 
 static std::string hostname = "127.0.0.1";
 static int brokerPort = 5000;
@@ -32,7 +33,9 @@ static std::vector<std::atomic<bool>*> subscriberRunFlags;
 static IMmwMessageSerializer* g_serializer = nullptr;
 
 static std::map<int, std::mutex> socketSendMutexes;
+static std::map<ITransport *, std::mutex> trasnportSendMutexes;
 static std::mutex socketSendMutexMapLock;
+static std::mutex trasnportSendMutexMapLock;
 
 #ifdef _WIN32
 #include <BaseTsd.h>
@@ -60,6 +63,30 @@ inline MmwResult sendMessage(int sock_fd, const std::string& data) {
     if (SocketAbstraction::Send(sock_fd, data.data(), data.size(), 0) != (ssize_t)data.size()) {
         return MMW_ERROR;
     }
+
+    return MMW_OK;
+}
+
+inline MmwResult sendMessage(ITransport *transport, const std::string& data) {
+    std::mutex* mtx;
+    {
+        std::lock_guard<std::mutex> lock(trasnportSendMutexMapLock);
+        mtx = &trasnportSendMutexes[transport];
+    }
+
+    std::lock_guard<std::mutex> lock(*mtx);
+
+    // uint32_t len = htonl(data.size());
+
+    // if (SocketAbstraction::Send(sock_fd, &len, sizeof(len), 0) != sizeof(len)) {
+    //     return MMW_ERROR;
+    // }
+
+    // if (SocketAbstraction::Send(sock_fd, data.data(), data.size(), 0) != (ssize_t)data.size()) {
+    //     return MMW_ERROR;
+    // }
+
+    transport->Send(data);
 
     return MMW_OK;
 }
@@ -126,52 +153,68 @@ MmwResult mmw_create_publisher(const char* topic) {
     }
 
     // Check return or socket call
-    int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock_fd == -1) {
-        spdlog::error("Failed to create socket");
-        return MMW_ERROR;
-    }
+    // int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
+    // if (sock_fd == -1) {
+    //     spdlog::error("Failed to create socket");
+    //     return MMW_ERROR;
+    // }
 
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(brokerPort);
+    // server_addr.sin_family = AF_INET;
+    // server_addr.sin_port = htons(brokerPort);
 
-    // Check return of inet_pton
-    int rc = SocketAbstraction::InetPtonAbstraction(AF_INET, hostname.c_str(), &server_addr.sin_addr);
-    if (rc != 1) {
-        spdlog::error("Invalid IP address provided: {}", hostname);
-        SocketAbstraction::SocketClose(sock_fd);
-        return MMW_ERROR;
-    }
+    // // Check return of inet_pton
+    // int rc = SocketAbstraction::InetPtonAbstraction(AF_INET, hostname.c_str(), &server_addr.sin_addr);
+    // if (rc != 1) {
+    //     spdlog::error("Invalid IP address provided: {}", hostname);
+    //     SocketAbstraction::SocketClose(sock_fd);
+    //     return MMW_ERROR;
+    // }
 
-    // Check return of connect
-    if (connect(sock_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
-        spdlog::error("Failed to connect to broker");
-        SocketAbstraction::SocketClose(sock_fd);
-        return MMW_ERROR;
-    }
+    // // Check return of connect
+    // if (connect(sock_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+    //     spdlog::error("Failed to connect to broker");
+    //     SocketAbstraction::SocketClose(sock_fd);
+    //     return MMW_ERROR;
+    // }
+    ITransport *transport = new TcpTransport();
 
     // Registration message
     MmwMessage msg{0, "register", topic, "publisher"};
+    // try {
+    //     if (sendMessage(sock_fd, g_serializer->serialize(msg)) == MMW_ERROR) {
+    //         spdlog::error("Failed to send registration for publisher: {}", topic);
+    //         SocketAbstraction::SocketClose(sock_fd);
+    //         return MMW_ERROR;
+    //     }
+    // } catch (const std::exception& e) {
+    //     spdlog::error("Publisher serialization failed for {}: {}", topic, e.what());
+    //     SocketAbstraction::SocketClose(sock_fd);
+    //     return MMW_ERROR;
+    // }
     try {
-        if (sendMessage(sock_fd, g_serializer->serialize(msg)) == MMW_ERROR) {
+        if (sendMessage(transport, g_serializer->serialize(msg)) == MMW_ERROR) {
             spdlog::error("Failed to send registration for publisher: {}", topic);
-            SocketAbstraction::SocketClose(sock_fd);
+            // SocketAbstraction::SocketClose(sock_fd);
             return MMW_ERROR;
         }
     } catch (const std::exception& e) {
         spdlog::error("Publisher serialization failed for {}: {}", topic, e.what());
-        SocketAbstraction::SocketClose(sock_fd);
+        // SocketAbstraction::SocketClose(sock_fd);
         return MMW_ERROR;
     }
 
     {
-        std::lock_guard<std::mutex> lock(socketListMutex);
-        publisherTopicToSocketFdMap[topic] = sock_fd;
+        // std::lock_guard<std::mutex> lock(socketListMutex);
+        // publisherTopicToSocketFdMap[topic] = sock_fd;
 
-        std::lock_guard<std::mutex> lock(transportListMutex);
-        publisherTopicToTransportMap[topic] = nullptr; // TODO: Actually insert an instance of ITransport (ie. TcpTransport or BeastTransport)
+        std::lock_guard<std::mutex> transportLock(transportListMutex);
+        publisherTopicToTransportMap[topic] = transport;
     }
-
+    
+    if (transport->Initialize() == MMW_ERROR) {
+        return MMW_ERROR;
+    }
+    
     spdlog::info("Publisher connected to broker at {}:{}", hostname, brokerPort);
     return MMW_OK;
 }
@@ -328,18 +371,19 @@ MmwResult mmw_create_subscriber_raw(const char* topic, void (*cb)(const char*, v
 }
 
 MmwResult mmw_publish(const char* topic, const char* payload, MmwReliability reliability) {
-    auto it = publisherTopicToSocketFdMap.find(topic);
-    if (it == publisherTopicToSocketFdMap.end()) {
+
+    auto it = publisherTopicToTransportMap.find(topic);
+    if (it == publisherTopicToTransportMap.end()) {
         spdlog::error("No existing publisher for topic: {}", topic);
         return MMW_ERROR;
     }
 
-    int sock_fd = it->second;
+    ITransport *transport = it->second;
     MmwMessage msg{0, "publish", topic, payload};
     msg.reliability = reliability;
 
     try {
-        if (sendMessage(sock_fd, g_serializer->serialize(msg)) == MMW_ERROR) {
+        if (sendMessage(transport, g_serializer->serialize(msg)) == MMW_ERROR) {
             spdlog::error("Failed to send message on topic {}", topic);
             return MMW_ERROR;
         }

@@ -17,8 +17,8 @@ int main() {
         return -1;
     }
 
-    // Clean up publishers
-    if (mmw_cleanup() != MMW_OK) {
-        return -1;
-    }
+    // // Clean up publishers
+    // if (mmw_cleanup() != MMW_OK) {
+    //     return -1;
+    // }
 }

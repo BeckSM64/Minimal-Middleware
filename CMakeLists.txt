@@ -56,7 +56,10 @@ add_library(
     ${CMAKE_CURRENT_LIST_DIR}/src/serialization/SerializerAbstraction.cpp
     ${SERIALIZER_SRC}
     ${CMAKE_CURRENT_LIST_DIR}/src/network/SocketAbstraction.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/src/network/TcpTransport.cpp
 )
+
+target_link_libraries(mmw_core PUBLIC spdlog::spdlog_header_only)
 
 # Create the mmw library
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
