@@ -396,18 +396,18 @@ MmwResult mmw_publish(const char* topic, const char* payload, MmwReliability rel
 }
 
 MmwResult mmw_publish_raw(const char* topic, void* payload, size_t size, MmwReliability reliability) {
-    auto it = publisherTopicToSocketFdMap.find(topic);
-    if (it == publisherTopicToSocketFdMap.end()) {
+    auto it = publisherTopicToTransportMap.find(topic);
+    if (it == publisherTopicToTransportMap.end()) {
         spdlog::error("No existing publisher for topic: {}", topic);
         return MMW_ERROR;
     }
 
-    int sock_fd = it->second;
+    ITransport* transport = it->second;
     MmwMessage msg{0, "publish", topic, "", payload, size};
     msg.reliability = reliability;
 
     try {
-        if (sendMessage(sock_fd, g_serializer->serialize_raw(msg)) == MMW_ERROR) {
+        if (sendMessage(transport, g_serializer->serialize_raw(msg)) == MMW_ERROR) {
             spdlog::error("Failed to send message on topic {}", topic);
             return MMW_ERROR;
         }
@@ -423,22 +423,24 @@ MmwResult mmw_publish_raw(const char* topic, void* payload, size_t size, MmwReli
  * Delete publisher
  */
 MmwResult mmw_delete_publisher(const char* topic) {
-    auto it = publisherTopicToSocketFdMap.find(topic);
-    if (it == publisherTopicToSocketFdMap.end()) {
+    auto it = publisherTopicToTransportMap.find(topic);
+    if (it == publisherTopicToTransportMap.end()) {
         return MMW_ERROR;
     }
 
-    int sock_fd = it->second;
+    ITransport *transport = it->second;
 
     MmwMessage msg{0, "unregister", topic, ""};
-    if (sendMessage(sock_fd, g_serializer->serialize(msg)) == MMW_ERROR) {
+    if (sendMessage(transport, g_serializer->serialize(msg)) == MMW_ERROR) {
         spdlog::error("Failed to unregister publisher for topic {}", topic);
     }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
-    SocketAbstraction::SocketClose(sock_fd);
+    // SocketAbstraction::SocketClose(sock_fd);
+    delete transport;
+    transport = nullptr;
 
-    publisherTopicToSocketFdMap.erase(it);
+    publisherTopicToTransportMap.erase(it);
 
     spdlog::info("Publisher socket closed for topic: {}", topic);
     return MMW_OK;

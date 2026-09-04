@@ -10,7 +10,7 @@ TcpTransport::TcpTransport() {
 }
 
 TcpTransport::~TcpTransport() {
-
+    SocketAbstraction::SocketClose(m_sockFd);
 }
 
 MmwResult TcpTransport::Initialize() {
@@ -58,6 +58,6 @@ MmwResult TcpTransport::Send(const std::string& data) {
     return MMW_OK;
 }
 
-int TcpTransport::Recv() {
-    return 0;
+MmwResult TcpTransport::Recv() {
+    return MMW_OK;
 }
