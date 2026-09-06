@@ -54,7 +54,6 @@ static std::mutex clientListMutex;
 static std::vector<std::thread> clientThreads;
 static std::mutex threadListMutex;
 
-static int server_fd = -1;
 static std::atomic<bool> running(true);
 
 static IMmwMessageSerializer* g_serializer = nullptr;
@@ -72,6 +71,8 @@ static std::mutex socketSendMutexMapLock;
 
 static std::map<ITransport*, std::mutex> transportSendMutexes;
 static std::mutex transportSendMutexMapLock;
+
+static ITransport* serverTransport = nullptr;
 
 // Send a length-prefixed message
 inline bool sendMessage(int sock_fd, const std::string& data) {
@@ -154,27 +155,6 @@ void routeMessageToSubscribers(const std::string& topic, const MmwMessage& msg) 
     }
 }
 
-// void removeClientByFd(int client_fd) {
-//     {
-//         std::lock_guard<std::mutex> lock(clientListMutex);
-//         connectedClientList.erase(
-//             std::remove_if(
-//                 connectedClientList.begin(), connectedClientList.end(),
-//                 [client_fd](const ConnectedClient& c){
-//                     return c.socket_fd == client_fd;
-//                 }
-//             ),
-//             connectedClientList.end()
-//         );
-//     }
-
-//     // Remove unacked messages when subscriber disconnects
-//     {
-//         std::lock_guard<std::mutex> lock(ackMutex);
-//         unackedMessages.erase(client_fd);
-//     }
-// }
-
 void removeClientByTransport(ITransport* transport) {
     {
         std::lock_guard<std::mutex> lock(clientListMutex);
@@ -198,22 +178,7 @@ void removeClientByTransport(ITransport* transport) {
 
 void handleClient(ITransport* transport) {
     while (running) {
-        // uint32_t netLen;
-        // ssize_t n = SocketAbstraction::Recv(client_fd, &netLen, sizeof(netLen), MSG_WAITALL);
-        // if (n <= 0) {
-        //     break;
-        // }
 
-        // uint32_t msgLen = ntohl(netLen);
-        // if (msgLen == 0) {
-        //     continue;
-        // }
-
-        // std::vector<char> buf(msgLen);
-        // n = SocketAbstraction::Recv(client_fd, buf.data(), msgLen, MSG_WAITALL);
-        // if (n <= 0) {
-        //     break;
-        // }
         std::string data;
         MmwResult result = transport->Recv(data);
 
@@ -291,10 +256,11 @@ void handleClient(ITransport* transport) {
 
 void handleSignal(int signum) {
     spdlog::info("Signal received ({}), shutting down broker...", signum);
+
     running = false;
-    if (server_fd != -1) {
-        SocketAbstraction::SocketClose(server_fd);
-        server_fd = -1;
+
+    if (serverTransport != nullptr) {
+        serverTransport->Close();
     }
 }
 
@@ -350,8 +316,8 @@ int main(int argc, char *argv[]) {
     //     return -1;
     // }
 
-    ITransport *transport = new TcpTransport();
-    transport->InitializeServer();
+    serverTransport = new TcpTransport();
+    serverTransport->InitializeServer();
 
     // Start heartbeat monitoring thread
     std::thread heartbeatMonitor([]() {
@@ -450,7 +416,7 @@ int main(int argc, char *argv[]) {
         //              ntohs(client_addr.sin_port), client_fd);
 
         ITransport* clientTransport = nullptr;
-        if (transport->Accept(running, clientTransport) == MMW_ERROR) {
+        if (serverTransport->Accept(running, clientTransport) == MMW_ERROR) {
             if (!running)
                 break;
 
@@ -489,9 +455,8 @@ int main(int argc, char *argv[]) {
         connectedClientList.clear();
     }
 
-    if (server_fd != -1) {
-        SocketAbstraction::SocketClose(server_fd);
-        server_fd = -1;
+    if (serverTransport != nullptr) {
+        serverTransport->Close();
     }
 
     // Cleanup broker persistence

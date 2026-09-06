@@ -193,3 +193,10 @@ MmwResult TcpTransport::Accept(std::atomic<bool>& running, ITransport*& client) 
 
     return MMW_OK;
 }
+
+void TcpTransport::Close() {
+    if (m_sockFd != -1) {
+        SocketAbstraction::SocketClose(m_sockFd);
+        m_sockFd = -1;
+    }
+}
