@@ -241,6 +241,7 @@ void handleClient(ITransport* transport) {
                     }
                 }
                 // spdlog::info("Received heartbeat for message  subscriber fd={}", client_fd);
+                spdlog::info("Received heartbeat for message  subscriber fd={}", "transport");
             }
 
         } catch (const std::exception& e) {

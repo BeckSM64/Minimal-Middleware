@@ -155,11 +155,13 @@ MmwResult mmw_create_publisher(const char* topic) {
         if (sendMessage(transport, g_serializer->serialize(msg)) == MMW_ERROR) {
             spdlog::error("Failed to send registration for publisher: {}", topic);
             // SocketAbstraction::SocketClose(sock_fd);
+            transport->Close();
             return MMW_ERROR;
         }
     } catch (const std::exception& e) {
         spdlog::error("Publisher serialization failed for {}: {}", topic, e.what());
         // SocketAbstraction::SocketClose(sock_fd);
+        transport->Close();
         return MMW_ERROR;
     }
 
@@ -255,18 +257,20 @@ MmwResult createSubscriberInternal(const char* topic, std::function<void(const M
         if (sendMessage(transport, g_serializer->serialize(msg)) == MMW_ERROR) {
             spdlog::error("Failed to send registration for subscriber: {}", topic);
             // SocketAbstraction::SocketClose(sock_fd);
+            transport->Close();
             return MMW_ERROR;
         }
     } catch (const std::exception& e) {
         spdlog::error("Subscriber serialization failed for {}: {}", topic, e.what());
         // SocketAbstraction::SocketClose(sock_fd);
+        transport->Close();
         return MMW_ERROR;
     }
 
     auto runningFlag = new std::atomic<bool>(true);
 
     {
-        std::lock_guard<std::mutex> lock(socketListMutex);
+        std::lock_guard<std::mutex> lock(transportListMutex);
         subscriberTopicToTransportMap[topic] = transport;
     }
 
@@ -365,6 +369,7 @@ MmwResult mmw_delete_publisher(const char* topic) {
 
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
     // SocketAbstraction::SocketClose(sock_fd);
+    transport->Close();
     delete transport;
     transport = nullptr;
 
@@ -378,24 +383,26 @@ MmwResult mmw_delete_publisher(const char* topic) {
  * Delete subscriber
  */
 MmwResult mmw_delete_subscriber(const char* topic) {
-    auto it = subscriberTopicToSocketFdMap.find(topic);
-    if (it == subscriberTopicToSocketFdMap.end()) {
+    auto it = subscriberTopicToTransportMap.find(topic);
+    if (it == subscriberTopicToTransportMap.end()) {
         return MMW_ERROR;
     }
 
-    int sock_fd = it->second;
+    ITransport* transport = it->second;
 
     // Ask broker to unregister (best-effort)
     MmwMessage msg{0, "unregister", topic, ""};
-    if (sendMessage(sock_fd, g_serializer->serialize(msg)) == MMW_ERROR) {
+    if (sendMessage(transport, g_serializer->serialize(msg)) == MMW_ERROR) {
         spdlog::error("Failed to unregister subscriber for topic {}", topic);
     }
 
     // Give broker a moment, then force unblock recv()
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
-    SocketAbstraction::SocketClose(sock_fd);
+    transport->Close();
+    delete transport;
+    transport = nullptr;
 
-    subscriberTopicToSocketFdMap.erase(it);
+    subscriberTopicToTransportMap.erase(it);
 
     spdlog::info("Subscriber socket closed for topic: {}", topic);
     return MMW_OK;
@@ -406,38 +413,38 @@ MmwResult mmw_delete_subscriber(const char* topic) {
  */
 MmwResult mmw_cleanup() {
     // Cleanup publisher sockets
-    for (auto& pair : publisherTopicToSocketFdMap) {
-        int sock_fd = pair.second;
-        if (sock_fd != -1) {
+    for (auto& pair : publisherTopicToTransportMap) {
+        ITransport* transport = pair.second;
+        if (transport != nullptr) {
             MmwMessage msg{0, "unregister", pair.first, ""};
-            if (sendMessage(sock_fd, g_serializer->serialize(msg)) == MMW_ERROR) {
+            if (sendMessage(transport, g_serializer->serialize(msg)) == MMW_ERROR) {
                 spdlog::error("Failed to unregister publisher for topic {}", pair.first);
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(20));
-            SocketAbstraction::SocketClose(sock_fd);
+            transport->Close();
             spdlog::info("Publisher socket closed for topic: {}", pair.first);
         }
     }
-    publisherTopicToSocketFdMap.clear();
+    publisherTopicToTransportMap.clear();
 
     // Close subscriber sockets
-    for (auto& pair : subscriberTopicToSocketFdMap) {
-        int sock_fd = pair.second;
-        if (sock_fd != -1) {
+    for (auto& pair : subscriberTopicToTransportMap) {
+        ITransport* transport = pair.second;
+        if (transport != nullptr) {
             MmwMessage msg{0, "unregister", pair.first, ""};
-            if (sendMessage(sock_fd, g_serializer->serialize(msg))) {
+            if (sendMessage(transport, g_serializer->serialize(msg))) {
                 spdlog::error("Failed to unregister subscriber for topic {}", pair.first);
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(20));
-            SocketAbstraction::SocketClose(sock_fd);
+            transport->Close();
             spdlog::info("Subscriber socket closed for topic: {}", pair.first);
         }
     }
-    subscriberTopicToSocketFdMap.clear();
+    subscriberTopicToTransportMap.clear();
 
     // Stop subscriber threads
     {
-        std::lock_guard<std::mutex> lock(socketListMutex);
+        std::lock_guard<std::mutex> lock(transportListMutex);
         for (auto* flag : subscriberRunFlags) {
             *flag = false;
         }
@@ -462,7 +469,8 @@ MmwResult mmw_cleanup() {
         g_serializer = nullptr;
     }
 
-    SocketAbstraction::SocketCleanup();
+    // SocketAbstraction::SocketCleanup();
+    // TODO: Do something here to cleanup sockets on windows for transport destructor
 
     return MMW_OK;
 }
