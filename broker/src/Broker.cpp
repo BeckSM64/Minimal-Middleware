@@ -103,9 +103,9 @@ inline bool sendMessage(ITransport* transport, const std::string& data) {
         mtx = &transportSendMutexes[transport];
     }
 
-    transport->Send(data);
+    std::lock_guard<std::mutex> lock(*mtx);
 
-    return true;
+    return transport->Send(data) == MMW_OK;
 }
 
 // Helper function to route messages to subscribers
@@ -215,7 +215,13 @@ void handleClient(ITransport* transport) {
         //     break;
         // }
         std::string data;
-        if (transport->Recv(data) == MMW_ERROR) {
+        MmwResult result = transport->Recv(data);
+
+        if (result == MMW_DISCONNECTED) {
+            break;
+        }
+
+        if (result == MMW_ERROR) {
             spdlog::error("FAILING TO RECEIVE");
             break;
         }
@@ -443,11 +449,17 @@ int main(int argc, char *argv[]) {
         // spdlog::info("Client connected from {}:{} (fd={})", inet_ntoa(client_addr.sin_addr),
         //              ntohs(client_addr.sin_port), client_fd);
 
-        transport->Accept(running);
+        ITransport* clientTransport = nullptr;
+        if (transport->Accept(running, clientTransport) == MMW_ERROR) {
+            if (!running)
+                break;
+
+            continue;
+        }
 
         {
             std::lock_guard<std::mutex> lt(threadListMutex);
-            clientThreads.emplace_back(std::thread(handleClient, transport));
+            clientThreads.emplace_back(std::thread(handleClient, clientTransport));
         }
     }
 

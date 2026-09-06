@@ -9,6 +9,10 @@ TcpTransport::TcpTransport() {
     
 }
 
+TcpTransport::TcpTransport(int sockFd) : m_sockFd(sockFd) {
+    
+}
+
 TcpTransport::~TcpTransport() {
     SocketAbstraction::SocketClose(m_sockFd);
 }
@@ -117,7 +121,11 @@ MmwResult TcpTransport::Recv(std::string& data) {
         MSG_WAITALL
     );
 
-    if (n <= 0) {
+    if (n == 0) {
+        return MMW_DISCONNECTED;
+    }
+
+    if (n < 0) {
         return MMW_ERROR;
     }
 
@@ -137,7 +145,11 @@ MmwResult TcpTransport::Recv(std::string& data) {
 
     n = SocketAbstraction::Recv(m_sockFd, buf.data(), msgLen, MSG_WAITALL);
 
-    if (n <= 0) {
+    if (n == 0) {
+        return MMW_DISCONNECTED;  // if you have such a result
+    }
+
+    if (n < 0) {
         return MMW_ERROR;
     }
 
@@ -146,25 +158,38 @@ MmwResult TcpTransport::Recv(std::string& data) {
     return MMW_OK;
 }
 
-MmwResult TcpTransport::Accept(std::atomic<bool>& running) {
+MmwResult TcpTransport::Accept(std::atomic<bool>& running, ITransport*& client) {
     struct sockaddr_in client_addr;
     socklen_t client_len = sizeof(client_addr);
-    int client_fd = accept(m_sockFd, (struct sockaddr*)&client_addr, &client_len);
+
+    int client_fd = accept(
+        m_sockFd,
+        (struct sockaddr*)&client_addr,
+        &client_len
+    );
+
     if (client_fd < 0) {
-        if (!running) {
+        if (!running)
             return MMW_ERROR;
-        }
-        if (errno == EINTR) {
-            // continue;
+
+        if (errno == EINTR)
             return MMW_ERROR;
-        }
+
         spdlog::error("Failed to accept");
-        // continue;
         return MMW_ERROR;
     }
 
-    spdlog::info("Client connected from {}:{} (fd={})", inet_ntoa(client_addr.sin_addr),
-                 ntohs(client_addr.sin_port), client_fd);
+    spdlog::info(
+        "Client connected from {}:{} (fd={})",
+        inet_ntoa(client_addr.sin_addr),
+        ntohs(client_addr.sin_port),
+        client_fd
+    );
+
+    TcpTransport* clientTransport = new TcpTransport();
+    clientTransport->m_sockFd = client_fd;
+
+    client = clientTransport;
 
     return MMW_OK;
 }
