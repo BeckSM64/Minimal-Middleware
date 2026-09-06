@@ -43,6 +43,55 @@ MmwResult TcpTransport::Initialize() {
     return MMW_OK;
 }
 
+MmwResult TcpTransport::InitializeServer() {
+
+    socklen_t addrlen = sizeof(m_serverAddr);
+
+    SocketAbstraction::SocketStartup();
+
+    m_sockFd = socket(AF_INET, SOCK_STREAM, 0);
+    if (m_sockFd == -1) {
+        spdlog::error("Failed to create socket");
+        return MMW_ERROR;
+    }
+
+    // TODO: Move to initialize with isServer check
+    int opt = 1;
+    setsockopt(m_sockFd, SOL_SOCKET, SO_REUSEADDR, (const char*)&opt, sizeof(opt));
+
+    // TODO: Hardcode to 5000 for now
+    int port = 5000;
+    // if (argc > 1) {
+    //     try {
+    //         port = std::stoi(argv[1]);
+    //         if (port <= 0 || port > 65535) {
+    //             spdlog::warn("Invalid port number '{}', using default {}", argv[1], port);
+    //             port = 5000;
+    //         }
+    //     } catch (const std::exception& e) {
+    //         spdlog::warn("Invalid port argument '{}', using default {}", argv[1], port);
+    //         port = 5000;
+    //     }
+    // }
+
+    m_serverAddr.sin_family = AF_INET;
+    m_serverAddr.sin_addr.s_addr = INADDR_ANY;
+    m_serverAddr.sin_port = htons(port);
+
+    if (bind(m_sockFd, (struct sockaddr*)&m_serverAddr, sizeof(m_serverAddr)) < 0) {
+        spdlog::error("Failed to bind");
+        return MMW_ERROR;
+    }
+    if (listen(m_sockFd, 16) < 0) {
+        spdlog::error("Failed to listen");
+        return MMW_ERROR;
+    }
+
+    spdlog::info("Broker listening on port {}", port);
+
+    return MMW_OK;
+}
+
 MmwResult TcpTransport::Send(const std::string& data) {
 
     uint32_t len = htonl(data.size());
@@ -93,6 +142,29 @@ MmwResult TcpTransport::Recv(std::string& data) {
     }
 
     data.assign(buf.data(), msgLen);
+
+    return MMW_OK;
+}
+
+MmwResult TcpTransport::Accept(std::atomic<bool>& running) {
+    struct sockaddr_in client_addr;
+    socklen_t client_len = sizeof(client_addr);
+    int client_fd = accept(m_sockFd, (struct sockaddr*)&client_addr, &client_len);
+    if (client_fd < 0) {
+        if (!running) {
+            return MMW_ERROR;
+        }
+        if (errno == EINTR) {
+            // continue;
+            return MMW_ERROR;
+        }
+        spdlog::error("Failed to accept");
+        // continue;
+        return MMW_ERROR;
+    }
+
+    spdlog::info("Client connected from {}:{} (fd={})", inet_ntoa(client_addr.sin_addr),
+                 ntohs(client_addr.sin_port), client_fd);
 
     return MMW_OK;
 }
