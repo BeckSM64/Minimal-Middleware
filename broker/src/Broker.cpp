@@ -69,29 +69,6 @@ static std::mutex transportSendMutexMapLock;
 
 static ITransport* serverTransport = nullptr;
 
-// Send a length-prefixed message
-inline bool sendMessage(int sock_fd, const std::string& data) {
-    std::mutex* mtx;
-    {
-        std::lock_guard<std::mutex> lock(socketSendMutexMapLock);
-        mtx = &socketSendMutexes[sock_fd];
-    }
-
-    std::lock_guard<std::mutex> lock(*mtx);
-
-    uint32_t len = htonl(data.size());
-
-    if (SocketAbstraction::Send(sock_fd, &len, sizeof(len), 0) != sizeof(len)) {
-        return false;
-    }
-
-    if (SocketAbstraction::Send(sock_fd, data.data(), data.size(), 0) != (ssize_t)data.size()) {
-        return false;
-    }
-
-    return true;
-}
-
 inline bool sendMessage(ITransport* transport, const std::string& data) {
     std::mutex* mtx;
     {
