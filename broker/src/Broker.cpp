@@ -23,11 +23,6 @@
 #include "ITransport.h"
 #include "TcpTransport.h"
 
-#ifdef _WIN32
-#include <BaseTsd.h>
-typedef SSIZE_T ssize_t;
-#endif
-
 struct ConnectedClient {
     int socket_fd;
     std::string type; // "publisher" or "subscriber"

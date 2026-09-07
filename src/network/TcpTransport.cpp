@@ -5,6 +5,11 @@
 #include "SocketAbstraction.h"
 #include "MMW.h"
 
+#ifdef _WIN32
+#include <BaseTsd.h>
+typedef SSIZE_T ssize_t;
+#endif
+
 TcpTransport::TcpTransport() {
     
 }
