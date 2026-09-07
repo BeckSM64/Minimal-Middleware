@@ -15,6 +15,13 @@
 #include "ITransport.h"
 #include "TcpTransport.h"
 
+struct Subscriber {
+    ITransport* transport;
+    std::thread listenerThread;
+    std::thread heartbeatThread;
+    std::atomic<bool>* running;
+};
+
 static std::string hostname = "127.0.0.1";
 static int brokerPort = 5000;
 static struct sockaddr_in server_addr;
@@ -24,48 +31,17 @@ static std::map<std::string, ITransport *> publisherTopicToTransportMap;
 static std::map<std::string, ITransport *> subscriberTopicToTransportMap;
 static std::mutex transportListMutex;
 
-static std::map<std::string, int> publisherTopicToSocketFdMap;
-static std::map<std::string, int> subscriberTopicToSocketFdMap;
-static std::mutex socketListMutex;
-
-static std::vector<std::thread> subscriberThreads;
-static std::vector<std::atomic<bool>*> subscriberRunFlags;
 static IMmwMessageSerializer* g_serializer = nullptr;
 
-static std::map<int, std::mutex> socketSendMutexes;
 static std::map<ITransport *, std::mutex> trasnportSendMutexes;
-static std::mutex socketSendMutexMapLock;
 static std::mutex trasnportSendMutexMapLock;
+
+static std::vector<Subscriber> subscribers;
 
 #ifdef _WIN32
 #include <BaseTsd.h>
 typedef SSIZE_T ssize_t;
 #endif
-
-/**
- * Helper function to send a length-prefixed message
- */
-inline MmwResult sendMessage(int sock_fd, const std::string& data) {
-    std::mutex* mtx;
-    {
-        std::lock_guard<std::mutex> lock(socketSendMutexMapLock);
-        mtx = &socketSendMutexes[sock_fd];
-    }
-
-    std::lock_guard<std::mutex> lock(*mtx);
-
-    uint32_t len = htonl(data.size());
-
-    if (SocketAbstraction::Send(sock_fd, &len, sizeof(len), 0) != sizeof(len)) {
-        return MMW_ERROR;
-    }
-
-    if (SocketAbstraction::Send(sock_fd, data.data(), data.size(), 0) != (ssize_t)data.size()) {
-        return MMW_ERROR;
-    }
-
-    return MMW_OK;
-}
 
 inline MmwResult sendMessage(ITransport *transport, const std::string& data) {
     std::mutex* mtx;
@@ -76,9 +52,7 @@ inline MmwResult sendMessage(ITransport *transport, const std::string& data) {
 
     std::lock_guard<std::mutex> lock(*mtx);
 
-    transport->Send(data);
-
-    return MMW_OK;
+    return transport->Send(data);
 }
 
 /**
@@ -154,13 +128,11 @@ MmwResult mmw_create_publisher(const char* topic) {
     try {
         if (sendMessage(transport, g_serializer->serialize(msg)) == MMW_ERROR) {
             spdlog::error("Failed to send registration for publisher: {}", topic);
-            // SocketAbstraction::SocketClose(sock_fd);
             transport->Close();
             return MMW_ERROR;
         }
     } catch (const std::exception& e) {
         spdlog::error("Publisher serialization failed for {}: {}", topic, e.what());
-        // SocketAbstraction::SocketClose(sock_fd);
         transport->Close();
         return MMW_ERROR;
     }
@@ -181,7 +153,7 @@ void subscriberThreadFunc(ITransport* transport, std::atomic<bool>* runningFlag,
         std::string data;
 
         if (transport->Recv(data) == MMW_ERROR) {
-            spdlog::error("FAILING TO RECEIVE");
+            spdlog::error("Failed to recv incoming messages...");
             break;
         }
 
@@ -256,31 +228,31 @@ MmwResult createSubscriberInternal(const char* topic, std::function<void(const M
     try {
         if (sendMessage(transport, g_serializer->serialize(msg)) == MMW_ERROR) {
             spdlog::error("Failed to send registration for subscriber: {}", topic);
-            // SocketAbstraction::SocketClose(sock_fd);
             transport->Close();
             return MMW_ERROR;
         }
     } catch (const std::exception& e) {
         spdlog::error("Subscriber serialization failed for {}: {}", topic, e.what());
-        // SocketAbstraction::SocketClose(sock_fd);
         transport->Close();
         return MMW_ERROR;
     }
-
-    auto runningFlag = new std::atomic<bool>(true);
 
     {
         std::lock_guard<std::mutex> lock(transportListMutex);
         subscriberTopicToTransportMap[topic] = transport;
     }
 
-    std::thread t(subscriberThreadFunc, transport, runningFlag, callback);
-    subscriberThreads.push_back(std::move(t));
+    Subscriber subscriber;
+    subscriber.transport = transport;
+    subscriber.running = new std::atomic<bool>(true);
 
-    std::thread hbThread(heartbeatThreadFunc, transport, runningFlag, 1000);
-    subscriberThreads.push_back(std::move(hbThread));
+    subscriber.listenerThread =
+        std::thread(subscriberThreadFunc, transport, subscriber.running, callback);
 
-    subscriberRunFlags.push_back(runningFlag);
+    subscriber.heartbeatThread =
+        std::thread(heartbeatThreadFunc, transport, subscriber.running, 1000);
+
+    subscribers.push_back(std::move(subscriber));
     return MMW_OK;
 }
 
@@ -368,14 +340,13 @@ MmwResult mmw_delete_publisher(const char* topic) {
     }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
-    // SocketAbstraction::SocketClose(sock_fd);
     transport->Close();
     delete transport;
     transport = nullptr;
 
     publisherTopicToTransportMap.erase(it);
 
-    spdlog::info("Publisher socket closed for topic: {}", topic);
+    spdlog::info("Publisher deleted for topic: {}", topic);
     return MMW_OK;
 }
 
@@ -396,81 +367,128 @@ MmwResult mmw_delete_subscriber(const char* topic) {
         spdlog::error("Failed to unregister subscriber for topic {}", topic);
     }
 
-    // Give broker a moment, then force unblock recv()
-    std::this_thread::sleep_for(std::chrono::milliseconds(20));
-    transport->Close();
-    delete transport;
-    transport = nullptr;
+    auto subscriberIt = std::find_if(
+        subscribers.begin(),
+        subscribers.end(),
+        [transport](const Subscriber& subscriber) {
+            return subscriber.transport == transport;
+        }
+    );
+
+    if (subscriberIt != subscribers.end()) {
+        // Stop subscriber and heartbeat threads
+        subscriberIt->running->store(false);
+
+        // Unblock listenerThread's Recv()
+        transport->Close();
+
+        // Wait for both threads to finish before destroying anything
+        if (subscriberIt->listenerThread.joinable()) {
+            subscriberIt->listenerThread.join();
+        }
+
+        if (subscriberIt->heartbeatThread.joinable()) {
+            subscriberIt->heartbeatThread.join();
+        }
+
+        delete subscriberIt->running;
+        delete subscriberIt->transport;
+
+        subscribers.erase(subscriberIt);
+    }
 
     subscriberTopicToTransportMap.erase(it);
+    spdlog::info("Subscriber deleted for topic: {}", topic);
 
-    spdlog::info("Subscriber socket closed for topic: {}", topic);
     return MMW_OK;
 }
+
 
 /**
  * Clean up publishers/subscribers
  */
 MmwResult mmw_cleanup() {
-    // Cleanup publisher sockets
-    for (auto& pair : publisherTopicToTransportMap) {
-        ITransport* transport = pair.second;
-        if (transport != nullptr) {
-            MmwMessage msg{0, "unregister", pair.first, ""};
-            if (sendMessage(transport, g_serializer->serialize(msg)) == MMW_ERROR) {
-                spdlog::error("Failed to unregister publisher for topic {}", pair.first);
-            }
-            std::this_thread::sleep_for(std::chrono::milliseconds(20));
-            transport->Close();
-            spdlog::info("Publisher socket closed for topic: {}", pair.first);
-        }
-    }
-    publisherTopicToTransportMap.clear();
+    // Stop and clean up all subscribers.
+    for (auto& subscriber : subscribers) {
+        if (subscriber.transport != nullptr) {
+            MmwMessage msg{0, "unregister", "", ""};
 
-    // Close subscriber sockets
-    for (auto& pair : subscriberTopicToTransportMap) {
-        ITransport* transport = pair.second;
-        if (transport != nullptr) {
-            MmwMessage msg{0, "unregister", pair.first, ""};
-            if (sendMessage(transport, g_serializer->serialize(msg))) {
-                spdlog::error("Failed to unregister subscriber for topic {}", pair.first);
+            // Find the topic associated with this transport.
+            for (const auto& pair : subscriberTopicToTransportMap) {
+                if (pair.second == subscriber.transport) {
+                    msg.topic = pair.first;
+                    break;
+                }
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds(20));
-            transport->Close();
-            spdlog::info("Subscriber socket closed for topic: {}", pair.first);
+
+            if (g_serializer != nullptr) {
+                if (sendMessage(
+                        subscriber.transport,
+                        g_serializer->serialize(msg)) == MMW_ERROR) {
+                    spdlog::error(
+                        "Failed to unregister subscriber for topic {}",
+                        msg.topic);
+                }
+            }
+
+            // Stop Recv() and heartbeat thread.
+            subscriber.running->store(false);
+            subscriber.transport->Close();
         }
     }
+
+    // The transport close above wakes Recv(), so now join both threads.
+    for (auto& subscriber : subscribers) {
+        if (subscriber.listenerThread.joinable()) {
+            subscriber.listenerThread.join();
+        }
+
+        if (subscriber.heartbeatThread.joinable()) {
+            subscriber.heartbeatThread.join();
+        }
+
+        delete subscriber.running;
+        subscriber.running = nullptr;
+
+        delete subscriber.transport;
+        subscriber.transport = nullptr;
+    }
+
+    subscribers.clear();
     subscriberTopicToTransportMap.clear();
 
-    // Stop subscriber threads
-    {
-        std::lock_guard<std::mutex> lock(transportListMutex);
-        for (auto* flag : subscriberRunFlags) {
-            *flag = false;
+
+    // Clean up all publishers.
+    for (auto& pair : publisherTopicToTransportMap) {
+        ITransport* transport = pair.second;
+
+        if (transport != nullptr) {
+            if (g_serializer != nullptr) {
+                MmwMessage msg{0, "unregister", pair.first, ""};
+
+                if (sendMessage(
+                        transport,
+                        g_serializer->serialize(msg)) == MMW_ERROR) {
+                    spdlog::error(
+                        "Failed to unregister publisher for topic {}",
+                        pair.first);
+                }
+            }
+
+            transport->Close();
+            delete transport;
         }
     }
 
-    for (auto& t : subscriberThreads) {
-        if (t.joinable()) {
-            t.join();
-        }
-    }
-    subscriberThreads.clear();
+    publisherTopicToTransportMap.clear();
 
-    // Cleanup running flags
-    for (auto* flag : subscriberRunFlags) {
-        delete flag;
-    }
-    subscriberRunFlags.clear();
 
-    // Cleanup serializer
-    if (g_serializer) {
+    // Destroy serializer last, after no threads can use it.
+    if (g_serializer != nullptr) {
         delete g_serializer;
         g_serializer = nullptr;
     }
 
-    // SocketAbstraction::SocketCleanup();
-    // TODO: Do something here to cleanup sockets on windows for transport destructor
-
     return MMW_OK;
 }
+
