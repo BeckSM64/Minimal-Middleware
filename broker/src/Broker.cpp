@@ -129,7 +129,7 @@ void routeMessageToSubscribers(const std::string& topic, const MmwMessage& msg) 
 
     for (ITransport* transport : targets) {
         if (!sendMessage(transport, serialized)) {
-            // spdlog::error("send to subscriber fd={} failed, removing client", fd);
+            spdlog::error("send to subscriber failed, removing client");
             std::lock_guard<std::mutex> lock(clientListMutex);
             connectedClientList.erase(
                 std::remove_if(
@@ -140,7 +140,7 @@ void routeMessageToSubscribers(const std::string& topic, const MmwMessage& msg) 
                 ),
                 connectedClientList.end()
             );
-            // SocketAbstraction::SocketClose(fd);
+            transport->Close();
         
         // Only track unacked messages if reliability was set
         } else if (msg.reliability) {
@@ -187,7 +187,7 @@ void handleClient(ITransport* transport) {
         }
 
         if (result == MMW_ERROR) {
-            spdlog::error("FAILING TO RECEIVE");
+            spdlog::error("Recv for message failed...");
             break;
         }
 
@@ -199,7 +199,7 @@ void handleClient(ITransport* transport) {
                 ConnectedTransportClient newClient{transport, msg.payload, msg.topic, std::chrono::steady_clock::now()};
                 std::lock_guard<std::mutex> lock(clientListMutex);
                 connectedClientList.push_back(newClient);
-                // spdlog::info("Registered {} for topic {} (fd={})", msg.payload, msg.topic, client_fd);
+                spdlog::info("Registered {} for topic {}", msg.payload, msg.topic);
             } else if (msg.type == "unregister") {
                 std::lock_guard<std::mutex> lock(clientListMutex);
                 connectedClientList.erase(
@@ -211,7 +211,7 @@ void handleClient(ITransport* transport) {
                     ),
                     connectedClientList.end()
                 );
-                // spdlog::info("Unregistered client fd={} topic={}", client_fd, msg.topic);
+                spdlog::info("Unregistered topic={}", msg.topic);
             } else if (msg.type == "publish") {
 
                 // Assign a unique messageId
@@ -231,7 +231,7 @@ void handleClient(ITransport* transport) {
                 if (subIt != unackedMessages.end()) {
                     subIt->second.erase(msg.messageId);
                 }
-                // spdlog::info("Received ACK for message {} from subscriber fd={}", msg.messageId, client_fd);
+                spdlog::info("Received ACK for message {} from subscriber", msg.messageId);
             } else if (msg.type == "heartbeat") {
                 std::lock_guard<std::mutex> lock(clientListMutex);
                 for (auto& client : connectedClientList) {
@@ -240,8 +240,7 @@ void handleClient(ITransport* transport) {
                         break;
                     }
                 }
-                // spdlog::info("Received heartbeat for message  subscriber fd={}", client_fd);
-                spdlog::info("Received heartbeat for message  subscriber fd={}", "transport");
+                spdlog::info("Received heartbeat for message  subscriber");
             }
 
         } catch (const std::exception& e) {
@@ -249,10 +248,9 @@ void handleClient(ITransport* transport) {
         }
     }
 
-    // SocketAbstraction::SocketClose(client_fd);
-    // removeClientByFd(client_fd);
+    transport->Close();
     removeClientByTransport(transport);
-    // spdlog::info("Client disconnected (fd={})", client_fd);
+    spdlog::info("Client disconnected");
 }
 
 void handleSignal(int signum) {
@@ -275,48 +273,6 @@ int main(int argc, char *argv[]) {
     // Initialize brokerMessageId based on existing messages in DB
     brokerMessageId = g_persistence->getNextMessageId();
 
-    // struct sockaddr_in address;
-    // socklen_t addrlen = sizeof(address);
-
-    // SocketAbstraction::SocketStartup();
-
-    // server_fd = socket(AF_INET, SOCK_STREAM, 0);
-    // if (server_fd == -1) {
-    //     spdlog::error("Failed to create socket");
-    //     return -1;
-    // }
-
-    // // TODO: Move to initialize with isServer check
-    // int opt = 1;
-    // setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, (const char*)&opt, sizeof(opt));
-
-    // int port = 5000;
-    // if (argc > 1) {
-    //     try {
-    //         port = std::stoi(argv[1]);
-    //         if (port <= 0 || port > 65535) {
-    //             spdlog::warn("Invalid port number '{}', using default {}", argv[1], port);
-    //             port = 5000;
-    //         }
-    //     } catch (const std::exception& e) {
-    //         spdlog::warn("Invalid port argument '{}', using default {}", argv[1], port);
-    //         port = 5000;
-    //     }
-    // }
-
-    // address.sin_family = AF_INET;
-    // address.sin_addr.s_addr = INADDR_ANY;
-    // address.sin_port = htons(port);
-
-    // if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) < 0) {
-    //     spdlog::error("Failed to bind");
-    //     return -1;
-    // }
-    // if (listen(server_fd, 16) < 0) {
-    //     spdlog::error("Failed to listen");
-    //     return -1;
-    // }
-
     serverTransport = new TcpTransport();
     serverTransport->InitializeServer();
 
@@ -330,9 +286,8 @@ int main(int argc, char *argv[]) {
             for (auto it = connectedClientList.begin(); it != connectedClientList.end();) {
                 if (it->type == "subscriber" &&
                     std::chrono::duration_cast<std::chrono::milliseconds>(now - it->lastHeartbeat).count() > TIMEOUT_MS) {
-                    // spdlog::warn("Subscriber fd={} timed out, removing", it->socket_fd);
                     spdlog::warn("Subscriber fd={} timed out, removing");
-                    // SocketAbstraction::SocketClose(it->socket_fd);
+                    it->transport->Close();
                     it = connectedClientList.erase(it);
                 } else {
                     ++it;
@@ -347,7 +302,6 @@ int main(int argc, char *argv[]) {
         while (running) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             auto now = std::chrono::steady_clock::now();
-            // std::vector<int> fdsToRemove;
             std::vector<ITransport*> transportsToRemove;
 
             {
@@ -364,12 +318,10 @@ int main(int argc, char *argv[]) {
                         if (elapsed.count() > 2) { // retry delay
                             if (pending.retryCount >= MAX_RETRIES) {
                                 // spdlog::error("Max retries reached for message {} to fd={}", pending.msg.messageId, fd);
-                                // fdsToRemove.push_back(fd);
                                 transportsToRemove.push_back(transport);
                                 break;
                             } else {
-                                // spdlog::warn("Resending message {} to fd={}", pending.msg.messageId, fd);
-                                // sendMessage(fd, g_serializer->serialize(pending.msg));
+                                spdlog::warn("Resending message {}", pending.msg.messageId);
                                 sendMessage(transport, g_serializer->serialize(pending.msg));
                                 pending.timestamp = now;
                                 pending.retryCount++;
@@ -381,16 +333,9 @@ int main(int argc, char *argv[]) {
                     }
                 }
 
-                // for (int fd : fdsToRemove) {
-                //     unackedMessages.erase(fd);
-                //     SocketAbstraction::SocketClose(fd);
-                //     removeClientByFd(fd);
-                // }
-
                 for (ITransport* transport : transportsToRemove) {
                     unackedMessages.erase(transport);
-                    // SocketAbstraction::SocketClose(fd);
-                    // removeClientByFd(fd);
+                    transport->Close();
                     removeClientByTransport(transport);
                 }
             }
@@ -399,23 +344,6 @@ int main(int argc, char *argv[]) {
 
     // Accept loop
     while (running) {
-        // struct sockaddr_in client_addr;
-        // socklen_t client_len = sizeof(client_addr);
-        // int client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &client_len);
-        // if (client_fd < 0) {
-        //     if (!running) {
-        //         break;
-        //     }
-        //     if (errno == EINTR) {
-        //         continue;
-        //     }
-        //     spdlog::error("Failed to accept");
-        //     continue;
-        // }
-
-        // spdlog::info("Client connected from {}:{} (fd={})", inet_ntoa(client_addr.sin_addr),
-        //              ntohs(client_addr.sin_port), client_fd);
-
         ITransport* clientTransport = nullptr;
         if (serverTransport->Accept(running, clientTransport) == MMW_ERROR) {
             if (!running)
@@ -450,7 +378,7 @@ int main(int argc, char *argv[]) {
         std::lock_guard<std::mutex> lock(clientListMutex);
         for (auto& c : connectedClientList) {
             if (c.transport != nullptr) {
-                // SocketAbstraction::SocketClose(c.socket_fd);
+                c.transport->Close();
             }
         }
         connectedClientList.clear();
