@@ -22,6 +22,7 @@
 #include "BrokerPersistence.h"
 #include "ITransport.h"
 #include "TcpTransport.h"
+#include "BeastTransport.h"
 
 struct ConnectedClient {
     int socket_fd;
@@ -245,7 +246,8 @@ int main(int argc, char *argv[]) {
     // Initialize brokerMessageId based on existing messages in DB
     brokerMessageId = g_persistence->getNextMessageId();
 
-    serverTransport = new TcpTransport();
+    // serverTransport = new TcpTransport();
+    serverTransport = new BeastTransport();
     serverTransport->InitializeServer();
 
     // Start heartbeat monitoring thread

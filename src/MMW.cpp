@@ -14,6 +14,7 @@
 #include "SocketAbstraction.h"
 #include "ITransport.h"
 #include "TcpTransport.h"
+#include "BeastTransport.h"
 
 struct Subscriber {
     ITransport* transport;
@@ -116,7 +117,8 @@ MmwResult mmw_create_publisher(const char* topic) {
         return MMW_ERROR;
     }
 
-    ITransport *transport = new TcpTransport();
+    // ITransport *transport = new TcpTransport();
+    ITransport *transport = new BeastTransport();
 
     if (transport->Initialize() == MMW_ERROR) {
         return MMW_ERROR;
@@ -218,7 +220,8 @@ MmwResult createSubscriberInternal(const char* topic, std::function<void(const M
         return MMW_ERROR;
     }
 
-    ITransport *transport = new TcpTransport();
+    // ITransport *transport = new TcpTransport();
+    ITransport *transport = new BeastTransport();
 
     if (transport->Initialize() == MMW_ERROR) {
         return MMW_ERROR;
