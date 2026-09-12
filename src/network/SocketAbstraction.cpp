@@ -77,3 +77,15 @@ int SocketAbstraction::SetSockOpt(int s, int level, int optname, const char* opt
     // Cast to (const char*) for Windows compatibility, (const void*) for POSIX
     return setsockopt(s, level, optname, (const char*)optval, optlen);
 }
+
+int SocketAbstraction::SendTo(int s, const void* buf, int32_t len, int32_t flags, const struct sockaddr* dest, socklen_t destLen) {
+#if defined(__linux__)
+    return sendto(s, buf, len, flags | MSG_NOSIGNAL, dest, destLen);
+#else
+    return sendto(s, buf, len, flags, dest, destLen);
+#endif
+}
+
+int SocketAbstraction::RecvFrom(int s, void* buf, int32_t len, int32_t flags, struct sockaddr* src, socklen_t* srcLen) {
+    return recvfrom(s, buf, len, flags, src, srcLen);
+}
