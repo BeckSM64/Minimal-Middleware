@@ -42,12 +42,8 @@ TcpTransport::TcpTransport() {
     
 }
 
-TcpTransport::TcpTransport(int sockFd) : m_sockFd(sockFd) {
-    
-}
-
 TcpTransport::~TcpTransport() {
-    SocketAbstraction::SocketClose(m_sockFd);
+    Close();
 }
 
 MmwResult TcpTransport::Initialize(std::string& hostname, int port) {
@@ -59,28 +55,29 @@ MmwResult TcpTransport::Initialize(std::string& hostname, int port) {
         return MMW_ERROR;
     }
 
-    // Check return or socket call
     m_sockFd = socket(AF_INET, SOCK_STREAM, 0);
+
     if (m_sockFd == -1) {
         spdlog::error("Failed to create socket");
+        CleanupSockets();
         return MMW_ERROR;
     }
 
     m_serverAddr.sin_family = AF_INET;
     m_serverAddr.sin_port = htons(m_brokerPort);
+    int rc = SocketAbstraction::InetPtonAbstraction( AF_INET, m_hostname.c_str(), &m_serverAddr.sin_addr );
 
-    // Check return of inet_pton
-    int rc = SocketAbstraction::InetPtonAbstraction(AF_INET, m_hostname.c_str(), &m_serverAddr.sin_addr);
     if (rc != 1) {
         spdlog::error("Invalid IP address provided: {}", m_hostname);
-        SocketAbstraction::SocketClose(m_sockFd);
-        return MMW_ERROR;
+        SocketAbstraction::SocketClose(m_sockFd); m_sockFd = -1;
+        CleanupSockets(); return MMW_ERROR;
     }
-
-    // Check return of connect
-    if (connect(m_sockFd, (struct sockaddr*)&m_serverAddr, sizeof(m_serverAddr)) < 0) {
+    
+    if (connect( m_sockFd, (struct sockaddr*)&m_serverAddr, sizeof(m_serverAddr) ) < 0) {
         spdlog::error("Failed to connect to broker");
         SocketAbstraction::SocketClose(m_sockFd);
+        m_sockFd = -1;
+        CleanupSockets();
         return MMW_ERROR;
     }
 
@@ -92,15 +89,15 @@ MmwResult TcpTransport::InitializeServer(int port) {
     m_hostname = "0.0.0.0";
     m_brokerPort = port;
 
-    if (SocketAbstraction::SocketStartup() != 0) {
+    if (InitializeSockets() == MMW_ERROR) {
         return MMW_ERROR;
     }
 
-    socklen_t addrlen = sizeof(m_serverAddr);
-
     m_sockFd = socket(AF_INET, SOCK_STREAM, 0);
+
     if (m_sockFd == -1) {
         spdlog::error("Failed to create socket");
+        CleanupSockets();
         return MMW_ERROR;
     }
 
@@ -114,10 +111,17 @@ MmwResult TcpTransport::InitializeServer(int port) {
 
     if (bind(m_sockFd, (struct sockaddr*)&m_serverAddr, sizeof(m_serverAddr)) < 0) {
         spdlog::error("Failed to bind");
+        SocketAbstraction::SocketClose(m_sockFd);
+        m_sockFd = -1;
+        CleanupSockets();
         return MMW_ERROR;
     }
+
     if (listen(m_sockFd, 16) < 0) {
         spdlog::error("Failed to listen");
+        SocketAbstraction::SocketClose(m_sockFd);
+        m_sockFd = -1;
+        CleanupSockets();
         return MMW_ERROR;
     }
 
@@ -217,8 +221,14 @@ MmwResult TcpTransport::Accept(std::atomic<bool>& running, ITransport*& client) 
     );
 
     TcpTransport* clientTransport = new TcpTransport();
-    clientTransport->m_sockFd = client_fd;
 
+    if (clientTransport->InitializeSockets() == MMW_ERROR) {
+        delete clientTransport;
+        SocketAbstraction::SocketClose(client_fd);
+        return MMW_ERROR;
+    }
+
+    clientTransport->m_sockFd = client_fd;
     client = clientTransport;
 
     return MMW_OK;

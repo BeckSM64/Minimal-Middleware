@@ -6,7 +6,6 @@
 class TcpTransport : public ITransport {
 public:
     TcpTransport();
-    TcpTransport(int sockFd);
     ~TcpTransport();
     MmwResult InitializeSockets();
     void CleanupSockets();
