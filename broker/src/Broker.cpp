@@ -264,46 +264,71 @@ int main(int argc, char *argv[]) {
     });
 
     // Start resend thread for unacked messages
+    // TODO: These retries should probably be configurable
     constexpr int MAX_RETRIES = 3;
+
     std::thread resendThread([MAX_RETRIES]() {
         while (running) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
             auto now = std::chrono::steady_clock::now();
+
+            struct Retry {
+                ITransport* transport;
+                std::string data;
+                uint64_t messageId;
+            };
+
+            std::vector<Retry> retries;
             std::vector<ITransport*> transportsToRemove;
 
+            // Inspect/update unacked messages while holding the mutex
             {
                 std::lock_guard<std::mutex> lock(ackMutex);
+
                 for (auto& clientPair : unackedMessages) {
                     ITransport* transport = clientPair.first;
                     auto& msgMap = clientPair.second;
 
-                    for (auto it = msgMap.begin(); it != msgMap.end();) {
-                        auto& pending = it->second;
+                    for (auto& msgPair : msgMap) {
+                        auto& pending = msgPair.second;
+
                         auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - pending.timestamp);
 
-                        if (elapsed.count() > 2) { // retry delay
+                        if (elapsed.count() > 2) {
                             if (pending.retryCount >= MAX_RETRIES) {
-                                // spdlog::error("Max retries reached for message {} to fd={}", pending.msg.messageId, fd);
                                 transportsToRemove.push_back(transport);
                                 break;
-                            } else {
-                                spdlog::warn("Resending message {}", pending.msg.messageId);
-                                sendMessage(transport, g_serializer->serialize(pending.msg));
-                                pending.timestamp = now;
-                                pending.retryCount++;
-                                ++it;
                             }
-                        } else {
-                            ++it;
+
+                            retries.push_back({
+                                transport,
+                                g_serializer->serialize(pending.msg),
+                                pending.msg.messageId
+                            });
+
+                            pending.timestamp = now;
+                            pending.retryCount++;
                         }
                     }
                 }
+            }
 
-                for (ITransport* transport : transportsToRemove) {
+            // Do network I/O WITHOUT holding ackMutex.
+            for (auto& retry : retries) {
+                spdlog::warn("Resending message {}", retry.messageId);
+                sendMessage(retry.transport, retry.data);
+            }
+
+            // Remove failed transports WITHOUT holding ackMutex.
+            for (ITransport* transport : transportsToRemove) {
+                {
+                    std::lock_guard<std::mutex> lock(ackMutex);
                     unackedMessages.erase(transport);
-                    transport->Close();
-                    removeClientByTransport(transport);
                 }
+
+                transport->Close();
+                removeClientByTransport(transport);
             }
         }
     });
