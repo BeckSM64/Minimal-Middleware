@@ -116,7 +116,7 @@ MmwResult mmw_create_publisher(const char* topic) {
     ITransport *transport = new TcpTransport();
     // ITransport *transport = new BeastTransport();
 
-    if (transport->Initialize() == MMW_ERROR) {
+    if (transport->Initialize(hostname, brokerPort) == MMW_ERROR) {
         return MMW_ERROR;
     }
 
@@ -219,7 +219,7 @@ MmwResult createSubscriberInternal(const char* topic, std::function<void(const M
     ITransport *transport = new TcpTransport();
     // ITransport *transport = new BeastTransport();
 
-    if (transport->Initialize() == MMW_ERROR) {
+    if (transport->Initialize(hostname, brokerPort) == MMW_ERROR) {
         return MMW_ERROR;
     }
 

@@ -226,7 +226,22 @@ int main(int argc, char *argv[]) {
     brokerMessageId = g_persistence->getNextMessageId();
 
     serverTransport = new TcpTransport();
-    serverTransport->InitializeServer();
+
+    int port = 5000;
+    if (argc > 1) {
+        try {
+            port = std::stoi(argv[1]);
+            if (port <= 0 || port > 65535) {
+                spdlog::warn("Invalid port number '{}', using default {}", argv[1], port);
+                port = 5000;
+            }
+        } catch (const std::exception& e) {
+            spdlog::warn("Invalid port argument '{}', using default {}", argv[1], port);
+            port = 5000;
+        }
+    }
+
+    serverTransport->InitializeServer(port);
 
     // Start heartbeat monitoring thread
     std::thread heartbeatMonitor([]() {

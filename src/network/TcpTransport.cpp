@@ -50,7 +50,10 @@ TcpTransport::~TcpTransport() {
     SocketAbstraction::SocketClose(m_sockFd);
 }
 
-MmwResult TcpTransport::Initialize() {
+MmwResult TcpTransport::Initialize(std::string& hostname, int port) {
+
+    m_hostname = hostname;
+    m_brokerPort = port;
 
     if (InitializeSockets() == MMW_ERROR) {
         return MMW_ERROR;
@@ -84,7 +87,10 @@ MmwResult TcpTransport::Initialize() {
     return MMW_OK;
 }
 
-MmwResult TcpTransport::InitializeServer() {
+MmwResult TcpTransport::InitializeServer(int port) {
+
+    m_hostname = "0.0.0.0";
+    m_brokerPort = port;
 
     if (SocketAbstraction::SocketStartup() != 0) {
         return MMW_ERROR;
@@ -102,24 +108,9 @@ MmwResult TcpTransport::InitializeServer() {
     int opt = 1;
     setsockopt(m_sockFd, SOL_SOCKET, SO_REUSEADDR, (const char*)&opt, sizeof(opt));
 
-    // TODO: Hardcode to 5000 for now
-    int port = 5000;
-    // if (argc > 1) {
-    //     try {
-    //         port = std::stoi(argv[1]);
-    //         if (port <= 0 || port > 65535) {
-    //             spdlog::warn("Invalid port number '{}', using default {}", argv[1], port);
-    //             port = 5000;
-    //         }
-    //     } catch (const std::exception& e) {
-    //         spdlog::warn("Invalid port argument '{}', using default {}", argv[1], port);
-    //         port = 5000;
-    //     }
-    // }
-
     m_serverAddr.sin_family = AF_INET;
     m_serverAddr.sin_addr.s_addr = INADDR_ANY;
-    m_serverAddr.sin_port = htons(port);
+    m_serverAddr.sin_port = htons(m_brokerPort);
 
     if (bind(m_sockFd, (struct sockaddr*)&m_serverAddr, sizeof(m_serverAddr)) < 0) {
         spdlog::error("Failed to bind");

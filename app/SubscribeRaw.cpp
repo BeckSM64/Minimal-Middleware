@@ -27,7 +27,7 @@ void testRawMessageCallback(const char* topic, void* message) {
 int main() {
 
     // Initialize library settings
-    if (mmw_initialize("127.0.0.1", 5000) != MMW_OK) {
+    if (mmw_initialize("127.0.0.1", 6000) != MMW_OK) {
         spdlog::error("Failed to initialize MMW");
         return -1;
     }
