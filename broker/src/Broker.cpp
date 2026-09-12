@@ -18,18 +18,9 @@
 #include "MmwMessage.h"
 #include "IMmwMessageSerializer.h"
 #include "SerializerAbstraction.h"
-#include "SocketAbstraction.h"
 #include "BrokerPersistence.h"
 #include "ITransport.h"
 #include "TcpTransport.h"
-#include "BeastTransport.h"
-
-struct ConnectedClient {
-    int socket_fd;
-    std::string type; // "publisher" or "subscriber"
-    std::string topic;
-    std::chrono::steady_clock::time_point lastHeartbeat;
-};
 
 struct ConnectedTransportClient {
     ITransport* transport;
@@ -46,34 +37,22 @@ struct PendingAck {
 
 static std::vector<ConnectedTransportClient> connectedClientList;
 static std::mutex clientListMutex;
-
 static std::vector<std::thread> clientThreads;
 static std::mutex threadListMutex;
-
 static std::atomic<bool> running(true);
-
 static IMmwMessageSerializer* g_serializer = nullptr;
-
 static std::mutex ackMutex;
-// static std::unordered_map<int, std::unordered_map<uint32_t, PendingAck>> unackedMessages;
 static std::unordered_map<ITransport*, std::unordered_map<uint32_t, PendingAck>> unackedMessages;
-
 static std::atomic<uint32_t> brokerMessageId{1}; // start at 1
-
 static BrokerPersistence* g_persistence = nullptr;
-
-static std::map<int, std::mutex> socketSendMutexes;
-static std::mutex socketSendMutexMapLock;
-
 static std::map<ITransport*, std::mutex> transportSendMutexes;
 static std::mutex transportSendMutexMapLock;
-
 static ITransport* serverTransport = nullptr;
 
 inline bool sendMessage(ITransport* transport, const std::string& data) {
     std::mutex* mtx;
     {
-        std::lock_guard<std::mutex> lock(socketSendMutexMapLock);
+        std::lock_guard<std::mutex> lock(transportSendMutexMapLock);
         mtx = &transportSendMutexes[transport];
     }
 
@@ -246,8 +225,7 @@ int main(int argc, char *argv[]) {
     // Initialize brokerMessageId based on existing messages in DB
     brokerMessageId = g_persistence->getNextMessageId();
 
-    // serverTransport = new TcpTransport();
-    serverTransport = new BeastTransport();
+    serverTransport = new TcpTransport();
     serverTransport->InitializeServer();
 
     // Start heartbeat monitoring thread
@@ -281,7 +259,6 @@ int main(int argc, char *argv[]) {
             {
                 std::lock_guard<std::mutex> lock(ackMutex);
                 for (auto& clientPair : unackedMessages) {
-                    // int fd = clientPair.first;
                     ITransport* transport = clientPair.first;
                     auto& msgMap = clientPair.second;
 
@@ -370,7 +347,6 @@ int main(int argc, char *argv[]) {
     delete g_serializer;
     g_serializer = nullptr;
 
-    SocketAbstraction::SocketCleanup();
     spdlog::info("Broker exited cleanly");
 
     return 0;

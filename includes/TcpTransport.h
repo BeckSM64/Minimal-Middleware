@@ -8,6 +8,8 @@ public:
     TcpTransport();
     TcpTransport(int sockFd);
     ~TcpTransport();
+    MmwResult InitializeSockets();
+    void CleanupSockets();
     MmwResult Initialize() override;
     MmwResult InitializeServer() override;
     MmwResult Send(const std::string& data) override;
@@ -18,4 +20,6 @@ public:
 private:
     int m_sockFd = -1;
     struct sockaddr_in m_serverAddr;
+    static std::mutex s_socketMutex;
+    static int s_socketUsers;
 };

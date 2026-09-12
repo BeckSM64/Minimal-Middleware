@@ -10,6 +10,34 @@
 typedef SSIZE_T ssize_t;
 #endif
 
+std::mutex TcpTransport::s_socketMutex;
+int TcpTransport::s_socketUsers = 0;
+
+MmwResult TcpTransport::InitializeSockets() {
+    std::lock_guard<std::mutex> lock(s_socketMutex);
+
+    if (s_socketUsers == 0) {
+        if (SocketAbstraction::SocketStartup() != 0) {
+            return MMW_ERROR;
+        }
+    }
+
+    ++s_socketUsers;
+    return MMW_OK;
+}
+
+void TcpTransport::CleanupSockets() {
+    std::lock_guard<std::mutex> lock(s_socketMutex);
+
+    if (s_socketUsers > 0) {
+        --s_socketUsers;
+
+        if (s_socketUsers == 0) {
+            SocketAbstraction::SocketCleanup();
+        }
+    }
+}
+
 TcpTransport::TcpTransport() {
     
 }
@@ -23,6 +51,10 @@ TcpTransport::~TcpTransport() {
 }
 
 MmwResult TcpTransport::Initialize() {
+
+    if (InitializeSockets() == MMW_ERROR) {
+        return MMW_ERROR;
+    }
 
     // Check return or socket call
     m_sockFd = socket(AF_INET, SOCK_STREAM, 0);
@@ -54,9 +86,11 @@ MmwResult TcpTransport::Initialize() {
 
 MmwResult TcpTransport::InitializeServer() {
 
-    socklen_t addrlen = sizeof(m_serverAddr);
+    if (SocketAbstraction::SocketStartup() != 0) {
+        return MMW_ERROR;
+    }
 
-    SocketAbstraction::SocketStartup();
+    socklen_t addrlen = sizeof(m_serverAddr);
 
     m_sockFd = socket(AF_INET, SOCK_STREAM, 0);
     if (m_sockFd == -1) {
@@ -200,8 +234,13 @@ MmwResult TcpTransport::Accept(std::atomic<bool>& running, ITransport*& client) 
 }
 
 void TcpTransport::Close() {
-    if (m_sockFd != -1) {
-        SocketAbstraction::SocketClose(m_sockFd);
-        m_sockFd = -1;
+
+    if (m_sockFd < 0) {
+        return;
     }
+
+    SocketAbstraction::SocketClose(m_sockFd);
+    m_sockFd = -1;
+
+    CleanupSockets();
 }

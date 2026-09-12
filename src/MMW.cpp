@@ -11,10 +11,8 @@
 #include "MMW.h"
 #include "IMmwMessageSerializer.h"
 #include "SerializerAbstraction.h"
-#include "SocketAbstraction.h"
 #include "ITransport.h"
 #include "TcpTransport.h"
-#include "BeastTransport.h"
 
 struct Subscriber {
     ITransport* transport;
@@ -101,7 +99,6 @@ MmwResult mmw_initialize(const char* brokerIp, unsigned short port) {
         return MMW_ERROR;
     }
 
-    SocketAbstraction::SocketStartup();
     return MMW_OK;
 }
 
@@ -109,7 +106,6 @@ MmwResult mmw_initialize(const char* brokerIp, unsigned short port) {
  * Create a publisher
  */
 MmwResult mmw_create_publisher(const char* topic) {
-    SocketAbstraction::SocketStartup();
 
     // Check that the serializer was set via mmw_initialize
     if (g_serializer == nullptr) {
@@ -117,8 +113,8 @@ MmwResult mmw_create_publisher(const char* topic) {
         return MMW_ERROR;
     }
 
-    // ITransport *transport = new TcpTransport();
-    ITransport *transport = new BeastTransport();
+    ITransport *transport = new TcpTransport();
+    // ITransport *transport = new BeastTransport();
 
     if (transport->Initialize() == MMW_ERROR) {
         return MMW_ERROR;
@@ -220,8 +216,8 @@ MmwResult createSubscriberInternal(const char* topic, std::function<void(const M
         return MMW_ERROR;
     }
 
-    // ITransport *transport = new TcpTransport();
-    ITransport *transport = new BeastTransport();
+    ITransport *transport = new TcpTransport();
+    // ITransport *transport = new BeastTransport();
 
     if (transport->Initialize() == MMW_ERROR) {
         return MMW_ERROR;
@@ -484,7 +480,6 @@ MmwResult mmw_cleanup() {
     }
 
     publisherTopicToTransportMap.clear();
-
 
     // Destroy serializer last, after no threads can use it.
     if (g_serializer != nullptr) {
