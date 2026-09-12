@@ -14,7 +14,8 @@ extern "C" {
  */
 typedef enum {
     MMW_OK,     /**< Operation completed successfully. */
-    MMW_ERROR   /**< Operation failed. */
+    MMW_ERROR,   /**< Operation failed. */
+    MMW_DISCONNECTED /**< Connected closed */
 } MmwResult;
 
 /**

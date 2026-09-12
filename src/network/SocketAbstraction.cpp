@@ -4,7 +4,9 @@ int SocketAbstraction::SocketStartup() {
 #if defined(_WIN32)
     WSADATA wsaData;
     int result = WSAStartup(MAKEWORD(2, 2), &wsaData);
-    if (result != 0) return result;
+    if (result != 0) {
+        return result;
+    }
 #endif
     return 0;
 }
