@@ -14,8 +14,8 @@ public:
     BeastTransport();
     ~BeastTransport();
 
-    MmwResult Initialize() override;
-    MmwResult InitializeServer() override;
+    MmwResult Initialize(std::string& hostname, int port) override;
+    MmwResult InitializeServer(int port) override;
 
     MmwResult Send(const std::string& data) override;
     MmwResult Recv(std::string& data) override;

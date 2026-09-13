@@ -21,6 +21,7 @@
 #include "BrokerPersistence.h"
 #include "ITransport.h"
 #include "TcpTransport.h"
+#include "BeastTransport.h"
 
 struct ConnectedTransportClient {
     ITransport* transport;
@@ -47,7 +48,8 @@ static std::atomic<uint32_t> brokerMessageId{1}; // start at 1
 static BrokerPersistence* g_persistence = nullptr;
 static std::map<ITransport*, std::mutex> transportSendMutexes;
 static std::mutex transportSendMutexMapLock;
-static ITransport* serverTransport = nullptr;
+static ITransport* serverTcpTransport = nullptr;
+static ITransport* serverBeastTransport = nullptr;
 
 inline bool sendMessage(ITransport* transport, const std::string& data) {
     std::mutex* mtx;
@@ -210,8 +212,12 @@ void handleSignal(int signum) {
 
     running = false;
 
-    if (serverTransport != nullptr) {
-        serverTransport->Close();
+    if (serverTcpTransport != nullptr) {
+        serverTcpTransport->Close();
+    }
+
+    if (serverBeastTransport != nullptr) {
+        serverBeastTransport->Close();
     }
 }
 
@@ -225,7 +231,8 @@ int main(int argc, char *argv[]) {
     // Initialize brokerMessageId based on existing messages in DB
     brokerMessageId = g_persistence->getNextMessageId();
 
-    serverTransport = new TcpTransport();
+    serverTcpTransport = new TcpTransport();
+    serverBeastTransport = new BeastTransport();
 
     int port = 5000;
     if (argc > 1) {
@@ -241,7 +248,8 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    serverTransport->InitializeServer(port);
+    serverTcpTransport->InitializeServer(port);
+    serverBeastTransport->InitializeServer(port + 1);
 
     // Start heartbeat monitoring thread
     std::thread heartbeatMonitor([]() {
@@ -333,21 +341,31 @@ int main(int argc, char *argv[]) {
         }
     });
 
-    // Accept loop
-    while (running) {
-        ITransport* clientTransport = nullptr;
-        if (serverTransport->Accept(running, clientTransport) == MMW_ERROR) {
-            if (!running)
-                break;
+    std::thread tcpAcceptThread([&]() {
+        while (running) {
+            ITransport* clientTransport = nullptr;
 
-            continue;
+            if (serverTcpTransport->Accept(running, clientTransport) == MMW_OK) {
+                std::lock_guard<std::mutex> lt(threadListMutex);
+                clientThreads.emplace_back(handleClient, clientTransport);
+            }
         }
+    });
 
-        {
-            std::lock_guard<std::mutex> lt(threadListMutex);
-            clientThreads.emplace_back(std::thread(handleClient, clientTransport));
+    std::thread beastAcceptThread([&]() {
+        while (running) {
+            ITransport* clientTransport = nullptr;
+
+            if (serverBeastTransport->Accept(running, clientTransport) == MMW_OK) {
+                std::lock_guard<std::mutex> lt(threadListMutex);
+                clientThreads.emplace_back(handleClient, clientTransport);
+            }
         }
-    }
+    });
+
+    // These will get cleaned up by the OS when the process exits
+    tcpAcceptThread.detach();
+    beastAcceptThread.detach();
 
     // Join all threads
     heartbeatMonitor.join();
@@ -375,8 +393,12 @@ int main(int argc, char *argv[]) {
         connectedClientList.clear();
     }
 
-    if (serverTransport != nullptr) {
-        serverTransport->Close();
+    if (serverTcpTransport != nullptr) {
+        serverTcpTransport->Close();
+    }
+
+    if (serverBeastTransport != nullptr) {
+        serverBeastTransport->Close();
     }
 
     // Cleanup broker persistence

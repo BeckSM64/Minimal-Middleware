@@ -13,6 +13,7 @@
 #include "SerializerAbstraction.h"
 #include "ITransport.h"
 #include "TcpTransport.h"
+#include "BeastTransport.h"
 
 struct Subscriber {
     ITransport* transport;
@@ -23,6 +24,7 @@ struct Subscriber {
 
 static std::string hostname = "127.0.0.1";
 static int brokerPort = 5000;
+static MmwTransport transportProtocol = MMW_TRANSPORT_TCP;
 static struct sockaddr_in server_addr;
 static std::atomic<bool> running{false};
 
@@ -83,7 +85,7 @@ void mmw_set_log_level(MmwLogLevel level) {
 /**
  * Initialize library settings
  */
-MmwResult mmw_initialize(const char* brokerIp, unsigned short port) {
+MmwResult mmw_initialize(const char* brokerIp, unsigned short port, MmwTransport transport) {
 
     if (!brokerIp || port == 0) {
         spdlog::error("No broker IP or port provided");
@@ -92,6 +94,7 @@ MmwResult mmw_initialize(const char* brokerIp, unsigned short port) {
 
     hostname = brokerIp;
     brokerPort = port;
+    transportProtocol = transport;
 
     g_serializer = CreateSerializer();
     if (!g_serializer) {
@@ -113,8 +116,15 @@ MmwResult mmw_create_publisher(const char* topic) {
         return MMW_ERROR;
     }
 
-    ITransport *transport = new TcpTransport();
-    // ITransport *transport = new BeastTransport();
+    ITransport *transport = nullptr;
+    if (transportProtocol == MMW_TRANSPORT_TCP) {
+        transport = new TcpTransport();
+    } else if (transportProtocol == MMW_TRANSPORT_WEBSOCKET) {
+        transport = new BeastTransport();
+    } else {
+        spdlog::error("Invalid transport protocol provided");
+        return MMW_ERROR;
+    }
 
     if (transport->Initialize(hostname, brokerPort) == MMW_ERROR) {
         return MMW_ERROR;
@@ -216,8 +226,15 @@ MmwResult createSubscriberInternal(const char* topic, std::function<void(const M
         return MMW_ERROR;
     }
 
-    ITransport *transport = new TcpTransport();
-    // ITransport *transport = new BeastTransport();
+    ITransport *transport = nullptr;
+    if (transportProtocol == MMW_TRANSPORT_TCP) {
+        transport = new TcpTransport();
+    } else if (transportProtocol == MMW_TRANSPORT_WEBSOCKET) {
+        transport = new BeastTransport();
+    } else {
+        spdlog::error("Invalid transport protocol provided");
+        return MMW_ERROR;
+    }    
 
     if (transport->Initialize(hostname, brokerPort) == MMW_ERROR) {
         return MMW_ERROR;

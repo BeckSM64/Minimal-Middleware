@@ -21,7 +21,12 @@ BeastTransport::~BeastTransport() {
     Close();
 }
 
-MmwResult BeastTransport::Initialize() {
+MmwResult BeastTransport::Initialize(std::string& hostname, int port) {
+
+    // TODO: Should this be done in the constructor?
+    m_hostname = hostname;
+    m_brokerPort = port;
+
     try {
         asio::ip::tcp::resolver resolver(m_ioc);
 
@@ -47,7 +52,10 @@ MmwResult BeastTransport::Initialize() {
     }
 }
 
-MmwResult BeastTransport::InitializeServer() {
+MmwResult BeastTransport::InitializeServer(int port) {
+
+    m_brokerPort = port;
+
     try {
         m_acceptor = new asio::ip::tcp::acceptor(
             m_ioc,
