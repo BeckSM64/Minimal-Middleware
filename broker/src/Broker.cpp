@@ -14,6 +14,7 @@
 #include <errno.h>
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/basic_file_sink.h>
+#include <cxxopts.hpp>
 
 #include "MmwMessage.h"
 #include "IMmwMessageSerializer.h"
@@ -225,31 +226,55 @@ int main(int argc, char *argv[]) {
     signal(SIGINT, handleSignal);
     signal(SIGTERM, handleSignal);
 
+    // Set the cxx options for argument parsing
+    cxxopts::Options options("mmw_broker", "MMW Broker");
+    options.add_options()
+        ("tcp-port", "TCP port", cxxopts::value<int>()->default_value("5000"))
+        ("ws-port", "WebSocket port", cxxopts::value<int>()->default_value("5001"))
+        ("h,help", "Show help");
+
+    // Attempt to parse the arguments
+    cxxopts::ParseResult result;
+    try {
+        result = options.parse(argc, argv);
+
+        if (result.count("help")) {
+            spdlog::info(options.help());
+            return 0;
+        }
+    } catch (const cxxopts::exceptions::exception& e) {
+        spdlog::error("{}", e.what());
+        return 1;
+    }
+
+    // Get the tcp and websocket ports from the cxxopts parse result
+    int tcpPort = result["tcp-port"].as<int>();
+    int wsPort = result["ws-port"].as<int>();
+
+    // Check that the ports are in a valid range
+    if (tcpPort <= 0 || tcpPort > 65535) {
+        spdlog::warn("Invalid port number '{}', using default {}", tcpPort, 5000);
+        tcpPort = 5000;
+    }
+
+    if (wsPort <= 0 || wsPort > 65535) {
+        spdlog::warn("Invalid port number '{}', using default {}", wsPort, 5001);
+        wsPort = 5001;
+    }
+
+    // Create the global serializer and initialize the db for message persistence
     g_serializer = CreateSerializer();
     g_persistence = new BrokerPersistence("broker_data.db");
 
     // Initialize brokerMessageId based on existing messages in DB
     brokerMessageId = g_persistence->getNextMessageId();
 
+    // Initialize the tcp and beast transports
     serverTcpTransport = new TcpTransport();
     serverBeastTransport = new BeastTransport();
 
-    int port = 5000;
-    if (argc > 1) {
-        try {
-            port = std::stoi(argv[1]);
-            if (port <= 0 || port > 65535) {
-                spdlog::warn("Invalid port number '{}', using default {}", argv[1], port);
-                port = 5000;
-            }
-        } catch (const std::exception& e) {
-            spdlog::warn("Invalid port argument '{}', using default {}", argv[1], port);
-            port = 5000;
-        }
-    }
-
-    serverTcpTransport->InitializeServer(port);
-    serverBeastTransport->InitializeServer(port + 1);
+    serverTcpTransport->InitializeServer(tcpPort);
+    serverBeastTransport->InitializeServer(wsPort);
 
     // Start heartbeat monitoring thread
     std::thread heartbeatMonitor([]() {

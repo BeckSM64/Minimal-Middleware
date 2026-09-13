@@ -78,22 +78,6 @@ MmwResult BeastTransport::InitializeServer(int port) {
     }
 }
 
-// MmwResult BeastTransport::Send(const std::string& data) {
-//     try {
-//         if (m_ws == nullptr) {
-//             return MMW_ERROR;
-//         }
-
-//         m_ws->write(asio::buffer(data));
-
-//         return MMW_OK;
-//     }
-//     catch (const std::exception& e) {
-//         spdlog::error("Beast send failed: {}", e.what());
-//         return MMW_ERROR;
-//     }
-// }
-
 MmwResult BeastTransport::Send(const std::string& data) {
     try {
         if (m_ws == nullptr) {

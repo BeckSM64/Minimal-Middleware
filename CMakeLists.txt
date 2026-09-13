@@ -36,6 +36,15 @@ FetchContent_Declare(
 )
 FetchContent_Populate(cereal)
 
+# Fetch CXXOPTS
+FetchContent_Declare(
+    cxxopts
+    GIT_REPOSITORY https://github.com/jarro2783/cxxopts.git
+    GIT_TAG v3.3.1
+)
+
+FetchContent_MakeAvailable(cxxopts)
+
 # Set the serializer
 if(CEREAL_SERIALIZER)
     add_compile_definitions(CEREAL_SERIALIZER)
@@ -102,10 +111,10 @@ if(BUILD_BROKER)
     target_include_directories(mmw_broker PRIVATE ${CMAKE_CURRENT_LIST_DIR}/broker/includes/ ${CMAKE_CURRENT_LIST_DIR}/includes/ ${cereal_SOURCE_DIR}/include/)
     if(WIN32)
         find_package(unofficial-sqlite3 CONFIG REQUIRED)
-        target_link_libraries(mmw_broker mmw_core nlohmann_json::nlohmann_json spdlog::spdlog_header_only ws2_32 unofficial::sqlite3::sqlite3)
+        target_link_libraries(mmw_broker mmw_core nlohmann_json::nlohmann_json spdlog::spdlog_header_only ws2_32 unofficial::sqlite3::sqlite3 cxxopts)
     else()
         find_package(SQLite3 REQUIRED)
-        target_link_libraries(mmw_broker mmw_core nlohmann_json::nlohmann_json pthread spdlog::spdlog_header_only SQLite::SQLite3)
+        target_link_libraries(mmw_broker mmw_core nlohmann_json::nlohmann_json pthread spdlog::spdlog_header_only SQLite3::SQLite3 cxxopts)
     endif()
 endif()
 
