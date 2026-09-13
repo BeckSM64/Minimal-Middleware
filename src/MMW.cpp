@@ -127,6 +127,8 @@ MmwResult mmw_create_publisher(const char* topic) {
     }
 
     if (transport->Initialize(hostname, brokerPort) == MMW_ERROR) {
+        delete transport;
+        transport = nullptr;
         return MMW_ERROR;
     }
 
@@ -237,6 +239,8 @@ MmwResult createSubscriberInternal(const char* topic, std::function<void(const M
     }    
 
     if (transport->Initialize(hostname, brokerPort) == MMW_ERROR) {
+        delete transport;
+        transport = nullptr;
         return MMW_ERROR;
     }
 
