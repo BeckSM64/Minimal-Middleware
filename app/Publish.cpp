@@ -9,7 +9,7 @@ int main() {
     mmw_set_log_level(MMW_LOG_LEVEL_INFO);
 
     // Initialize library
-    if (mmw_initialize("127.0.0.1", 5000, MMW_TRANSPORT_TCP) != MMW_OK) {
+    if (mmw_initialize("127.0.0.1", 5001, MMW_TRANSPORT_TCP) != MMW_OK) {
         spdlog::error("Failed to initialize MMW");
         return 1;
     }

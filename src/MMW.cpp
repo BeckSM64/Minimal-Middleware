@@ -12,8 +12,13 @@
 #include "IMmwMessageSerializer.h"
 #include "SerializerAbstraction.h"
 #include "ITransport.h"
+
+#ifdef EMSCRIPTEN
+#include "EmscriptenTransport.h"
+#else
 #include "TcpTransport.h"
 #include "BeastTransport.h"
+#endif
 
 struct Subscriber {
     ITransport* transport;
@@ -25,7 +30,6 @@ struct Subscriber {
 static std::string hostname = "127.0.0.1";
 static int brokerPort = 5000;
 static MmwTransport transportProtocol = MMW_TRANSPORT_TCP;
-static struct sockaddr_in server_addr;
 static std::atomic<bool> running{false};
 
 static std::map<std::string, ITransport *> publisherTopicToTransportMap;
@@ -117,6 +121,7 @@ MmwResult mmw_create_publisher(const char* topic) {
     }
 
     ITransport *transport = nullptr;
+#ifndef EMSCRIPTEN
     if (transportProtocol == MMW_TRANSPORT_TCP) {
         transport = new TcpTransport();
     } else if (transportProtocol == MMW_TRANSPORT_WEBSOCKET) {
@@ -125,6 +130,9 @@ MmwResult mmw_create_publisher(const char* topic) {
         spdlog::error("Invalid transport protocol provided");
         return MMW_ERROR;
     }
+#else
+    transport = new EmscriptenTransport();
+#endif
 
     if (transport->Initialize(hostname, brokerPort) == MMW_ERROR) {
         delete transport;
@@ -229,6 +237,7 @@ MmwResult createSubscriberInternal(const char* topic, std::function<void(const M
     }
 
     ITransport *transport = nullptr;
+#ifndef EMSCRIPTEN
     if (transportProtocol == MMW_TRANSPORT_TCP) {
         transport = new TcpTransport();
     } else if (transportProtocol == MMW_TRANSPORT_WEBSOCKET) {
@@ -236,7 +245,10 @@ MmwResult createSubscriberInternal(const char* topic, std::function<void(const M
     } else {
         spdlog::error("Invalid transport protocol provided");
         return MMW_ERROR;
-    }    
+    }
+#else
+    transport = new EmscriptenTransport();
+#endif  
 
     if (transport->Initialize(hostname, brokerPort) == MMW_ERROR) {
         delete transport;

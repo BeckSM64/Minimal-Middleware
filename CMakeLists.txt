@@ -58,15 +58,36 @@ else()
     set(SERIALIZER_SRC ${CMAKE_CURRENT_LIST_DIR}/src/serialization/CerealSerializer.cpp)
 endif()
 
+if(EMSCRIPTEN)
+    set(
+        TRANSPORT_SOURCES
+        ${CMAKE_CURRENT_LIST_DIR}/src/network/EmscriptenTransport.cpp
+    )
+    set(
+        TRANSPORT_INCLUDES
+        ${CMAKE_CURRENT_LIST_DIR}/includes/network/emscripten/
+    )
+else()
+    set(
+        TRANSPORT_SOURCES
+        ${CMAKE_CURRENT_LIST_DIR}/src/network/TcpTransport.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/src/network/BeastTransport.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/src/network/SocketAbstraction.cpp
+    )
+    set(
+        TRANSPORT_INCLUDES
+        ${CMAKE_CURRENT_LIST_DIR}/includes/network/tcp/
+        ${CMAKE_CURRENT_LIST_DIR}/includes/network/beast/
+    )
+endif()
+
 # Create the mmw core library
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 add_library(
     mmw_core
     ${CMAKE_CURRENT_LIST_DIR}/src/serialization/SerializerAbstraction.cpp
     ${SERIALIZER_SRC}
-    ${CMAKE_CURRENT_LIST_DIR}/src/network/SocketAbstraction.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/src/network/TcpTransport.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/src/network/BeastTransport.cpp
+    ${TRANSPORT_SOURCES}
 )
 
 target_link_libraries(mmw_core PUBLIC spdlog::spdlog_header_only)
@@ -92,8 +113,8 @@ target_include_directories(mmw_core PUBLIC
     $<INSTALL_INTERFACE:include>
 )
 
-target_include_directories(mmw PRIVATE ${CMAKE_CURRENT_LIST_DIR}/ ${CMAKE_CURRENT_LIST_DIR}/includes/ ${cereal_SOURCE_DIR}/include/)
-target_include_directories(mmw_core PRIVATE ${CMAKE_CURRENT_LIST_DIR}/ ${CMAKE_CURRENT_LIST_DIR}/includes/ ${cereal_SOURCE_DIR}/include/)
+target_include_directories(mmw PRIVATE ${CMAKE_CURRENT_LIST_DIR}/ ${CMAKE_CURRENT_LIST_DIR}/includes/ ${TRANSPORT_INCLUDES} ${cereal_SOURCE_DIR}/include/)
+target_include_directories(mmw_core PRIVATE ${CMAKE_CURRENT_LIST_DIR}/ ${CMAKE_CURRENT_LIST_DIR}/includes/ ${TRANSPORT_INCLUDES} ${cereal_SOURCE_DIR}/include/)
 
 # Link Libraries
 if(WIN32)
@@ -114,8 +135,15 @@ if(BUILD_BROKER)
         target_link_libraries(mmw_broker mmw_core nlohmann_json::nlohmann_json spdlog::spdlog_header_only ws2_32 unofficial::sqlite3::sqlite3 cxxopts)
     else()
         find_package(SQLite3 REQUIRED)
-        target_link_libraries(mmw_broker mmw_core nlohmann_json::nlohmann_json pthread spdlog::spdlog_header_only SQLite3::SQLite3 cxxopts)
+        target_link_libraries(mmw_broker mmw_core nlohmann_json::nlohmann_json pthread spdlog::spdlog_header_only SQLite::SQLite3 cxxopts)
     endif()
+endif()
+
+if(EMSCRIPTEN)
+    target_link_options(mmw INTERFACE
+        "-lwebsocket.js"
+        "-sASYNCIFY"
+    )
 endif()
 
 # Build sample apps if requested
