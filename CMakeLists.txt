@@ -59,6 +59,7 @@ else()
 endif()
 
 if(EMSCRIPTEN)
+    add_compile_definitions(EMSCRIPTEN)
     set(
         TRANSPORT_SOURCES
         ${CMAKE_CURRENT_LIST_DIR}/src/network/EmscriptenTransport.cpp
@@ -129,7 +130,7 @@ if(BUILD_BROKER)
         mmw_broker ${CMAKE_CURRENT_LIST_DIR}/broker/src/Broker.cpp
         ${CMAKE_CURRENT_LIST_DIR}/broker/src/BrokerPersistence.cpp
     )
-    target_include_directories(mmw_broker PRIVATE ${CMAKE_CURRENT_LIST_DIR}/broker/includes/ ${CMAKE_CURRENT_LIST_DIR}/includes/ ${cereal_SOURCE_DIR}/include/)
+    target_include_directories(mmw_broker PRIVATE ${CMAKE_CURRENT_LIST_DIR}/broker/includes/ ${CMAKE_CURRENT_LIST_DIR}/includes/ ${TRANSPORT_INCLUDES} ${cereal_SOURCE_DIR}/include/)
     if(WIN32)
         find_package(unofficial-sqlite3 CONFIG REQUIRED)
         target_link_libraries(mmw_broker mmw_core nlohmann_json::nlohmann_json spdlog::spdlog_header_only ws2_32 unofficial::sqlite3::sqlite3 cxxopts)
@@ -140,9 +141,34 @@ if(BUILD_BROKER)
 endif()
 
 if(EMSCRIPTEN)
+    target_compile_options(mmw PRIVATE
+        -pthread
+        -matomics
+        -mbulk-memory
+    )
+
     target_link_options(mmw INTERFACE
-        "-lwebsocket.js"
-        "-sASYNCIFY"
+        -pthread
+        -matomics
+        -mbulk-memory
+        -lwebsocket.js
+        -sASYNCIFY
+    )
+endif()
+
+if(EMSCRIPTEN)
+    target_compile_options(mmw_core PRIVATE
+        -pthread
+        -matomics
+        -mbulk-memory
+    )
+
+    target_link_options(mmw_core INTERFACE
+        -pthread
+        -matomics
+        -mbulk-memory
+        -lwebsocket.js
+        -sASYNCIFY
     )
 endif()
 
@@ -169,6 +195,99 @@ if(BUILD_SAMPLE_APPS)
         target_link_libraries(subscribe_c PRIVATE mmw)
         target_link_libraries(publish_raw PRIVATE mmw)
         target_link_libraries(subscribe_raw PRIVATE mmw)
+
+    elseif(EMSCRIPTEN)
+        target_link_libraries(publish PRIVATE mmw)
+        target_link_libraries(subscribe PRIVATE mmw)
+        target_link_libraries(publish_c PRIVATE mmw)
+        target_link_libraries(subscribe_c PRIVATE mmw)
+        target_link_libraries(publish_raw PRIVATE mmw)
+        target_link_libraries(subscribe_raw PRIVATE mmw)
+
+        target_compile_options(publish PRIVATE
+            -pthread
+            -matomics
+            -mbulk-memory
+        )
+        target_link_options(publish PRIVATE
+            -pthread
+            -matomics
+            -mbulk-memory
+            -lwebsocket.js
+            -sASYNCIFY
+            -sPTHREAD_POOL_SIZE=4
+        )
+
+        target_compile_options(subscribe PRIVATE
+            -pthread
+            -matomics
+            -mbulk-memory
+        )
+        target_link_options(subscribe PRIVATE
+            -pthread
+            -matomics
+            -mbulk-memory
+            -lwebsocket.js
+            -sASYNCIFY
+            -sPTHREAD_POOL_SIZE=4
+        )
+
+        target_compile_options(publish_c PRIVATE
+            -pthread
+            -matomics
+            -mbulk-memory
+        )
+        target_link_options(publish_c PRIVATE
+            -pthread
+            -matomics
+            -mbulk-memory
+            -lwebsocket.js
+            -sASYNCIFY
+            -sPTHREAD_POOL_SIZE=2
+        )
+
+        target_compile_options(subscribe_c PRIVATE
+            -pthread
+            -matomics
+            -mbulk-memory
+        )
+        target_link_options(subscribe_c PRIVATE
+            -pthread
+            -matomics
+            -mbulk-memory
+            -lwebsocket.js
+            -sASYNCIFY
+            -sPTHREAD_POOL_SIZE=2
+        )
+
+        target_compile_options(publish_raw PRIVATE
+            -pthread
+            -matomics
+            -mbulk-memory
+        )
+        target_link_options(publish_raw PRIVATE
+            -pthread
+            -matomics
+            -mbulk-memory
+            -lwebsocket.js
+            -sASYNCIFY
+            -sPTHREAD_POOL_SIZE=4
+        )
+
+        target_compile_options(subscribe_raw PRIVATE
+            -pthread
+            -matomics
+            -mbulk-memory
+        )
+        target_link_options(subscribe_raw PRIVATE
+            -pthread
+            -matomics
+            -mbulk-memory
+            -lwebsocket.js
+            -sASYNCIFY
+            -sPTHREAD_POOL_SIZE=4
+        )
+
     else()
         target_link_libraries(publish PRIVATE mmw pthread)
         target_link_libraries(subscribe PRIVATE mmw pthread)

@@ -2,6 +2,8 @@
 #define EMSCRIPTEN_TRANSPORT_H
 
 #include <atomic>
+#include <condition_variable>
+#include <mutex>
 #include <queue>
 #include <string>
 
@@ -60,9 +62,14 @@ private:
     bool m_disconnected;
 
     std::queue<std::string> m_receivedMessages;
+    std::mutex m_receivedMessagesMutex;
+    std::condition_variable m_receivedMessagesCondition;
 
     std::string m_hostname;
     int m_brokerPort;
+
+    std::queue<std::string> m_pendingMessages;
+    std::mutex m_pendingMessagesMutex;
 };
 
 #endif
