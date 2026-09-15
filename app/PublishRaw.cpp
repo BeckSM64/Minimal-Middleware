@@ -47,7 +47,7 @@ int main() {
     testRawMessageStruct.testShort = 10;
 
     // Initialize library settings
-    if (mmw_initialize("127.0.0.1", 5001, MMW_TRANSPORT_WEBSOCKET) != MMW_OK) {
+    if (mmw_initialize("127.0.0.1", 5000, MMW_TRANSPORT_TCP) != MMW_OK) {
         spdlog::error("Failed to initialize MMW");
         return -1;
     }
