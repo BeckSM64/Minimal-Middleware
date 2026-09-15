@@ -2,6 +2,31 @@
 #include <spdlog/spdlog.h>
 #include "MMW.h"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+
+void publisher_loop() {
+    static int ticks = 0;
+
+    if (++ticks < 10) {
+        return;
+    }
+
+    if (mmw_delete_publisher("Test Topic") != MMW_OK) {
+        spdlog::error("Failed to delete MMW publisher");
+    }
+
+    if (mmw_delete_publisher("Test Topic 2") != MMW_OK) {
+        spdlog::error("Failed to delete MMW publisher");
+    }
+
+    mmw_cleanup();
+
+    emscripten_cancel_main_loop();
+}
+
+#endif
+
 typedef struct {
     char testString1[32];
     char testString2[32];
@@ -22,7 +47,7 @@ int main() {
     testRawMessageStruct.testShort = 10;
 
     // Initialize library settings
-    if (mmw_initialize("127.0.0.1", 5000) != MMW_OK) {
+    if (mmw_initialize("127.0.0.1", 5000, MMW_TRANSPORT_TCP) != MMW_OK) {
         spdlog::error("Failed to initialize MMW");
         return -1;
     }
@@ -40,9 +65,17 @@ int main() {
         }
     }
 
+#ifdef __EMSCRIPTEN__
+
+    emscripten_set_main_loop(publisher_loop, 0, 1);
+
+#else
+
     // Cleanup mmw resources
     if (mmw_cleanup() != MMW_OK) {
         spdlog::error("Failed to cleanup MMW resources");
         return -1;
     }
+#endif
+
 }

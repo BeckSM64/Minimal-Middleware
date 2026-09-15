@@ -8,13 +8,19 @@ extern "C" {
 #include <stddef.h>
 #endif
 
+typedef enum {
+    MMW_TRANSPORT_TCP,
+    MMW_TRANSPORT_WEBSOCKET
+} MmwTransport;
+
 /**
  * @enum MmwResult
  * @brief Return codes for all MMW functions.
  */
 typedef enum {
     MMW_OK,     /**< Operation completed successfully. */
-    MMW_ERROR   /**< Operation failed. */
+    MMW_ERROR,   /**< Operation failed. */
+    MMW_DISCONNECTED /**< Connected closed */
 } MmwResult;
 
 /**
@@ -54,7 +60,7 @@ void mmw_set_log_level(MmwLogLevel level);
  * @param port Port the broker is accepting connections on.
  * @return MMW_OK on success, MMW_ERROR on failure.
  */
-MmwResult mmw_initialize(const char* brokerIp, unsigned short port);
+MmwResult mmw_initialize(const char* brokerIp, unsigned short port, MmwTransport transport);
 
 /**
  * @brief Create a publisher for a topic.

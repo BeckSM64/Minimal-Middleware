@@ -3,7 +3,7 @@
 int main() {
 
     // Initialize library settings
-    if (mmw_initialize("127.0.0.1", 5000) != MMW_OK) {
+    if (mmw_initialize("127.0.0.1", 5000, MMW_TRANSPORT_TCP) != MMW_OK) {
         return -1;
     }
 
@@ -17,8 +17,8 @@ int main() {
         return -1;
     }
 
-    // Clean up publishers
-    if (mmw_cleanup() != MMW_OK) {
-        return -1;
-    }
+    // // Clean up publishers
+    // if (mmw_cleanup() != MMW_OK) {
+    //     return -1;
+    // }
 }
