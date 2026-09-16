@@ -91,7 +91,12 @@ add_library(
     ${TRANSPORT_SOURCES}
 )
 
-target_link_libraries(mmw_core PUBLIC spdlog::spdlog_header_only)
+if(NOT EMSCRIPTEN)
+    find_package(Boost REQUIRED)
+    set(BOOST_LIBRARY Boost::boost)
+endif()
+
+target_link_libraries(mmw_core PUBLIC spdlog::spdlog_header_only ${BOOST_LIBRARY})
 
 # Create the mmw library
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
