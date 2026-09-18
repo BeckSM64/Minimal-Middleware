@@ -39,22 +39,6 @@ tasks:
         vars: { EXAMPLES: ON, EMSCRIPTEN_PATH: "{{.EMSCRIPTEN_PATH}}" }
       - task: cmake:build
 
-  # TODO: Take debug out of build before release
-  # cmake:configure:
-  #   internal: true
-  #   cmds:
-  #     - mkdir -p build/
-  #     - >
-  #       cmake -S . -B build/
-  #       -DBUILD_BROKER={{.BROKER}}
-  #       -DBUILD_SAMPLE_APPS={{.EXAMPLES}}
-  #       -DBUILD_PYTHON_MODULE={{.PYTHON}}
-  #       -D{{.SERIALIZER}}=ON
-  #       -DBUILD_SHARED_LIBS={{.SHARED}}
-  #       {{if eq OS "windows"}}
-  #       -DCMAKE_TOOLCHAIN_FILE={{.VCPKG_PATH}}
-  #       {{end}}
-  #       -DCMAKE_BUILD_TYPE=Debug
   cmake:configure:
     internal: true
     cmds:
