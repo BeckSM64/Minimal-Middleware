@@ -36,7 +36,7 @@ tasks:
     desc: Build MMW with Emscripten
     cmds:
       - task: cmake:configure
-        vars: { EXAMPLES: "{{.EXAMPLES}}", EMSCRIPTEN_PATH: "{{.EMSCRIPTEN_PATH}}" }
+        vars: { EXAMPLES: ON, EMSCRIPTEN_PATH: "{{.EMSCRIPTEN_PATH}}" }
       - task: cmake:build
 
   # TODO: Take debug out of build before release
@@ -104,6 +104,8 @@ tasks:
     dir: ./
     status:
       - test "{{.PYTHON}}" != "ON"
+    env:
+      CMAKE_TOOLCHAIN_FILE: '{{.VCPKG_PATH}}'
     cmds:
       - "{{.PYTHON_EXE}} -m pip install -r requirements.txt"
       - "{{.PYTHON_EXE}} -m build ."
