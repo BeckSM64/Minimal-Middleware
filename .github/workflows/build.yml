@@ -32,7 +32,11 @@ jobs:
 
       - name: Install Boost (Windows)
         if: runner.os == 'Windows'
-        run: vcpkg install boost:x64-windows
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://archives.boost.io/release/1.92.0/source/boost_1_92_0.zip -OutFile boost.zip
+          Expand-Archive boost.zip -DestinationPath C:\
+          echo "BOOST_ROOT=C:\boost_1_92_0" >> $env:GITHUB_ENV
 
       - name: Install Boost (Linux)
         if: runner.os == 'Linux'
@@ -125,7 +129,11 @@ jobs:
 
       - name: Install Boost (Windows)
         if: runner.os == 'Windows'
-        run: vcpkg install boost:x64-windows
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://archives.boost.io/release/1.92.0/source/boost_1_92_0.zip -OutFile boost.zip
+          Expand-Archive boost.zip -DestinationPath C:\
+          echo "BOOST_ROOT=C:\boost_1_92_0" >> $env:GITHUB_ENV
 
       - name: Install Boost (Linux)
         if: runner.os == 'Linux'
