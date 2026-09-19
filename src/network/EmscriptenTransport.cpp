@@ -266,6 +266,10 @@ EM_BOOL EmscriptenTransport::OnOpen(
         transport->m_pendingMessages.pop();
     }
 
+    if (transport->m_closeWhenConnected) {
+        transport->Close();
+    }
+
     return EM_TRUE;
 }
 
@@ -335,4 +339,12 @@ EM_BOOL EmscriptenTransport::OnClose(
     transport->m_receivedMessagesCondition.notify_all();
 
     return EM_TRUE;
+}
+
+void EmscriptenTransport::CloseWhenReady() {
+    if (m_connected) {
+        Close();
+    } else {
+        m_closeWhenConnected = true;
+    }
 }

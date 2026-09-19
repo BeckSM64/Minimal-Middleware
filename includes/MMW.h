@@ -118,6 +118,23 @@ MmwResult mmw_publish(const char* topic, const char* message, MmwReliability rel
 MmwResult mmw_publish_raw(const char* topic, void* message, size_t size, MmwReliability reliability);
 
 /**
+ * @brief Blocks until mmw_stop() is called.
+ *
+ * On native platforms, this blocks the calling thread. On Emscripten,
+ * the browser event loop continues running while waiting.
+ *
+ * @return MMW_OK on success.
+ */
+MmwResult mmw_wait();
+
+/**
+ * @brief Stops a thread blocked in mmw_wait().
+ *
+ * @return MMW_OK on success.
+ */
+MmwResult mmw_stop();
+
+/**
  * @brief Delete publisher.
  *
  * Destroys a singular publisher for a specified topic.

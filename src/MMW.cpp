@@ -7,6 +7,7 @@
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/basic_file_sink.h>
 #include <fcntl.h>
+#include <condition_variable>
 
 #include "MMW.h"
 #include "IMmwMessageSerializer.h"
@@ -15,6 +16,7 @@
 
 #ifdef EMSCRIPTEN
 #include "EmscriptenTransport.h"
+#include <emscripten.h>
 #else
 #include "TcpTransport.h"
 #include "BeastTransport.h"
@@ -31,6 +33,8 @@ static std::string hostname = "127.0.0.1";
 static int brokerPort = 5000;
 static MmwTransport transportProtocol = MMW_TRANSPORT_TCP;
 static std::atomic<bool> running{false};
+static std::mutex waitMutex;
+static std::condition_variable waitCondition;
 
 static std::map<std::string, ITransport *> publisherTopicToTransportMap;
 static std::map<std::string, ITransport *> subscriberTopicToTransportMap;
@@ -356,6 +360,38 @@ MmwResult mmw_publish_raw(const char* topic, void* payload, size_t size, MmwReli
 }
 
 /**
+ * Block until mmw_stop is called
+ */
+MmwResult mmw_wait() {
+    running = true;
+
+#ifdef EMSCRIPTEN
+    while (running) {
+        emscripten_sleep(100);
+    }
+#else
+    std::unique_lock<std::mutex> lock(waitMutex);
+
+    waitCondition.wait(lock, [] {
+        return !running.load();
+    });
+#endif
+
+    return MMW_OK;
+}
+
+/**
+ * Breaks out of the blocking thread in mmw_wait
+ */
+MmwResult mmw_stop() {
+    running = false;
+
+    waitCondition.notify_all();
+
+    return MMW_OK;
+}
+
+/**
  * Delete publisher
  */
 MmwResult mmw_delete_publisher(const char* topic) {
@@ -371,10 +407,14 @@ MmwResult mmw_delete_publisher(const char* topic) {
         spdlog::error("Failed to unregister publisher for topic {}", topic);
     }
 
+#ifdef EMSCRIPTEN
+    static_cast<EmscriptenTransport*>(transport)->CloseWhenReady();
+#else
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
     transport->Close();
     delete transport;
     transport = nullptr;
+#endif
 
     publisherTopicToTransportMap.erase(it);
 
@@ -434,7 +474,6 @@ MmwResult mmw_delete_subscriber(const char* topic) {
 
     return MMW_OK;
 }
-
 
 /**
  * Clean up publishers/subscribers

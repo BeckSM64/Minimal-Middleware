@@ -31,6 +31,8 @@ public:
 
     void Close() override;
 
+    void CloseWhenReady();
+
 private:
     static EM_BOOL OnOpen(
         int eventType,
@@ -70,6 +72,8 @@ private:
 
     std::queue<std::string> m_pendingMessages;
     std::mutex m_pendingMessagesMutex;
+
+    bool m_closeWhenConnected = false;
 };
 
 #endif
