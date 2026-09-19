@@ -8,6 +8,7 @@
 #include <spdlog/sinks/basic_file_sink.h>
 #include <fcntl.h>
 #include <condition_variable>
+#include <set>
 
 #include "MMW.h"
 #include "IMmwMessageSerializer.h"
@@ -46,6 +47,8 @@ static std::map<ITransport *, std::mutex> trasnportSendMutexes;
 static std::mutex trasnportSendMutexMapLock;
 
 static std::vector<Subscriber> subscribers;
+
+static const uint64_t MAX_RECEIVED_MESSAGE_IDS = 10000;
 
 #ifdef _WIN32
 #include <BaseTsd.h>
@@ -170,6 +173,7 @@ MmwResult mmw_create_publisher(const char* topic) {
 
 typedef std::function<void(const MmwMessage&)> SubscriberCallback;
 void subscriberThreadFunc(ITransport* transport, std::atomic<bool>* runningFlag, SubscriberCallback callback) {
+    std::set<uint32_t> receivedMessageIds;
     while (*runningFlag) {
 
         std::string data;
@@ -193,11 +197,31 @@ void subscriberThreadFunc(ITransport* transport, std::atomic<bool>* runningFlag,
 
                 if (msg.reliability) {
 
+                    // Construct the ack message
                     MmwMessage ackMsg;
                     ackMsg.messageId = msg.messageId;
                     ackMsg.type = "ack";
                     ackMsg.topic = msg.topic;
 
+                    // Check that we haven't already received this message so we don't
+                    // trigger the callback twice
+                    if (receivedMessageIds.find(msg.messageId) != receivedMessageIds.end()) {
+                        if (sendMessage(transport, g_serializer->serialize(ackMsg)) == MMW_ERROR) {
+                            spdlog::error("Failed to send ACK for {}", ackMsg.messageId);
+                        }
+                        continue;
+                    }
+
+                    // Track the message id to avoid duplicates
+                    receivedMessageIds.emplace(msg.messageId);
+
+                    // Start clearing saved message ids after 10000 otherwise
+                    // this will eventually fill memory
+                    if (receivedMessageIds.size() > MAX_RECEIVED_MESSAGE_IDS) {
+                        receivedMessageIds.erase(receivedMessageIds.begin());
+                    }
+
+                    // Send the ack back to the broker
                     if (sendMessage(transport, g_serializer->serialize(ackMsg)) == MMW_ERROR) {
                         spdlog::error("Failed to send ACK for {}", ackMsg.messageId);
                     }
