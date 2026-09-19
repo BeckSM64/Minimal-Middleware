@@ -1,8 +1,3 @@
-#ifdef _WIN32
-#include <io.h>
-#else
-#include <unistd.h>
-#endif
 #include <stdio.h>
 #include "MMW.h"
 
@@ -13,7 +8,7 @@ void test_callback(const char *topic, const char *message) {
 int main() {
 
     // Initialize library settings
-    if (mmw_initialize("127.0.0.1", 5000, MMW_TRANSPORT_TCP) != MMW_OK) {
+    if (mmw_initialize("127.0.0.1", 5001, MMW_TRANSPORT_WEBSOCKET) != MMW_OK) {
         return -1;
     }
 
@@ -23,13 +18,7 @@ int main() {
     }
 
     // Sleep to keep subscriber up
-    while (1) {
-#ifdef _WIN32
-        Sleep(1000);
-#else
-        sleep(1);
-#endif
-    }
+    mmw_wait();
 
     // Cleanup
     if (mmw_cleanup() != MMW_OK) {

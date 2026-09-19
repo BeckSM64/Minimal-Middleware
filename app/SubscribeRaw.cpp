@@ -1,20 +1,11 @@
 #include <string>
-#include <chrono>
-#include <thread>
-#include <atomic>
 #include <csignal>
 #include <spdlog/spdlog.h>
 #include "MMW.h"
 
-#ifdef __EMSCRIPTEN__
-#include <emscripten.h>
-#endif
-
-std::atomic<bool> g_running(true);
-
 void signal_handler(int) {
     spdlog::info("Signal caught, stopping...");
-    g_running = false;
+    mmw_stop();
 }
 
 typedef struct {
@@ -37,23 +28,6 @@ void testRawMessageCallback(const char* topic, void* message) {
         testRawMessageString->testShort);
 }
 
-#ifdef __EMSCRIPTEN__
-
-void main_loop() {
-    if (!g_running) {
-        emscripten_cancel_main_loop();
-
-        spdlog::info("Deleting subscribers...");
-
-        mmw_delete_subscriber("Raw Message Topic");
-        mmw_cleanup();
-
-        spdlog::info("Exit.");
-    }
-}
-
-#endif
-
 int main() {
 
     std::signal(SIGINT, signal_handler);
@@ -72,24 +46,12 @@ int main() {
         return -1;
     }
 
-#ifdef __EMSCRIPTEN__
-
-    emscripten_set_main_loop(main_loop, 0, 1);
-
-#else
-
     // Stay alive so subscriber stays up
-    while (g_running) {
-        std::this_thread::sleep_for(
-            std::chrono::milliseconds(200)
-        );
-    }
+    mmw_wait();
 
     if (mmw_cleanup() != MMW_OK) {
         spdlog::error("Failed to cleanup MMW resources");
         return -1;
     }
-
-#endif
 
 }
