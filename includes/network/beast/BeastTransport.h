@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <memory>
 #include <string>
 
 #include <boost/asio.hpp>
@@ -30,9 +31,13 @@ public:
 private:
     boost::asio::io_context m_ioc;
 
-    boost::beast::websocket::stream<
-        boost::asio::ip::tcp::socket
-    >* m_ws = nullptr;
+    std::shared_ptr<
+        boost::beast::websocket::stream<
+            boost::asio::ip::tcp::socket
+        >
+    > m_ws;
 
-    boost::asio::ip::tcp::acceptor* m_acceptor = nullptr;
+    std::shared_ptr<
+        boost::asio::ip::tcp::acceptor
+    > m_acceptor;
 };

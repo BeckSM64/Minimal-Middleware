@@ -23,7 +23,6 @@ BeastTransport::~BeastTransport() {
 
 MmwResult BeastTransport::Initialize(std::string& hostname, int port) {
 
-    // TODO: Should this be done in the constructor?
     m_hostname = hostname;
     m_brokerPort = port;
 
@@ -38,16 +37,19 @@ MmwResult BeastTransport::Initialize(std::string& hostname, int port) {
         asio::ip::tcp::socket socket(m_ioc);
         asio::connect(socket, results);
 
-        m_ws = new websocket::stream<asio::ip::tcp::socket>(
-            std::move(socket)
-        );
+        m_ws = std::make_shared<
+            websocket::stream<asio::ip::tcp::socket>
+        >(std::move(socket));
 
         m_ws->handshake(m_hostname, "/");
 
         return MMW_OK;
     }
     catch (const std::exception& e) {
-        spdlog::error("Failed to initialize Beast transport: {}", e.what());
+        spdlog::error(
+            "Failed to initialize Beast transport: {}",
+            e.what()
+        );
         return MMW_ERROR;
     }
 }
@@ -57,7 +59,9 @@ MmwResult BeastTransport::InitializeServer(int port) {
     m_brokerPort = port;
 
     try {
-        m_acceptor = new asio::ip::tcp::acceptor(
+        m_acceptor = std::make_shared<
+            asio::ip::tcp::acceptor
+        >(
             m_ioc,
             asio::ip::tcp::endpoint(
                 asio::ip::tcp::v4(),
@@ -73,37 +77,51 @@ MmwResult BeastTransport::InitializeServer(int port) {
         return MMW_OK;
     }
     catch (const std::exception& e) {
-        spdlog::error("Failed to initialize Beast server: {}", e.what());
+        spdlog::error(
+            "Failed to initialize Beast server: {}",
+            e.what()
+        );
         return MMW_ERROR;
     }
 }
 
 MmwResult BeastTransport::Send(const std::string& data) {
     try {
-        if (m_ws == nullptr) {
+        std::shared_ptr<
+            websocket::stream<asio::ip::tcp::socket>
+        > ws = m_ws;
+
+        if (ws == nullptr) {
             return MMW_ERROR;
         }
 
-        m_ws->binary(true);
-        m_ws->write(asio::buffer(data));
+        ws->binary(true);
+        ws->write(asio::buffer(data));
 
         return MMW_OK;
     }
     catch (const std::exception& e) {
-        spdlog::error("Beast send failed: {}", e.what());
+        spdlog::error(
+            "Beast send failed: {}",
+            e.what()
+        );
         return MMW_ERROR;
     }
 }
 
 MmwResult BeastTransport::Recv(std::string& data) {
     try {
-        if (m_ws == nullptr) {
+        std::shared_ptr<
+            websocket::stream<asio::ip::tcp::socket>
+        > ws = m_ws;
+
+        if (ws == nullptr) {
             return MMW_ERROR;
         }
 
         beast::flat_buffer buffer;
 
-        m_ws->read(buffer);
+        ws->read(buffer);
 
         data = beast::buffers_to_string(buffer.data());
 
@@ -114,11 +132,17 @@ MmwResult BeastTransport::Recv(std::string& data) {
             return MMW_DISCONNECTED;
         }
 
-        spdlog::error("Beast recv failed: {}", e.what());
+        spdlog::error(
+            "Beast recv failed: {}",
+            e.what()
+        );
         return MMW_ERROR;
     }
     catch (const std::exception& e) {
-        spdlog::error("Beast recv failed: {}", e.what());
+        spdlog::error(
+            "Beast recv failed: {}",
+            e.what()
+        );
         return MMW_ERROR;
     }
 }
@@ -139,9 +163,9 @@ MmwResult BeastTransport::Accept(
         BeastTransport* clientTransport = new BeastTransport();
 
         clientTransport->m_ws =
-            new websocket::stream<asio::ip::tcp::socket>(
-                std::move(socket)
-            );
+            std::make_shared<
+                websocket::stream<asio::ip::tcp::socket>
+            >(std::move(socket));
 
         clientTransport->m_ws->accept();
 
@@ -166,24 +190,30 @@ MmwResult BeastTransport::Accept(
 }
 
 void BeastTransport::Close() {
-    if (m_ws != nullptr) {
+
+    std::shared_ptr<
+        websocket::stream<asio::ip::tcp::socket>
+    > ws = m_ws;
+
+    m_ws.reset();
+
+    if (ws != nullptr) {
         beast::error_code ec;
 
-        m_ws->close(
+        ws->close(
             websocket::close_code::normal,
             ec
         );
-
-        delete m_ws;
-        m_ws = nullptr;
     }
 
-    if (m_acceptor != nullptr) {
+    std::shared_ptr<
+        asio::ip::tcp::acceptor
+    > acceptor = m_acceptor;
+
+    m_acceptor.reset();
+
+    if (acceptor != nullptr) {
         beast::error_code ec;
-
-        m_acceptor->close(ec);
-
-        delete m_acceptor;
-        m_acceptor = nullptr;
+        acceptor->close(ec);
     }
 }
