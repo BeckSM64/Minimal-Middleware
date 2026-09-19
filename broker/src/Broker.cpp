@@ -83,6 +83,18 @@ void routeMessageToSubscribers(const std::string& topic, const MmwMessage& msg) 
     std::string serialized = g_serializer->serialize(msg);
 
     for (ITransport* transport : targets) {
+
+        // Only track unacked messages if reliability was set
+        if (msg.reliability) {
+            std::lock_guard<std::mutex> lock(ackMutex);
+            PendingAck ack;
+            ack.msg = msg;
+            ack.timestamp = std::chrono::steady_clock::now();
+            ack.retryCount = 0;
+            unackedMessages[transport][msg.messageId] = ack;
+
+        }
+
         if (!sendMessage(transport, serialized)) {
             spdlog::error("send to subscriber failed, removing client");
             std::lock_guard<std::mutex> lock(clientListMutex);
@@ -96,16 +108,6 @@ void routeMessageToSubscribers(const std::string& topic, const MmwMessage& msg) 
                 connectedClientList.end()
             );
             transport->Close();
-        
-        // Only track unacked messages if reliability was set
-        } else if (msg.reliability) {
-            std::lock_guard<std::mutex> lock(ackMutex);
-            PendingAck ack;
-            ack.msg = msg;
-            ack.timestamp = std::chrono::steady_clock::now();
-            ack.retryCount = 0;
-            unackedMessages[transport][msg.messageId] = ack;
-
         }
     }
 }
