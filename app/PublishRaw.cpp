@@ -22,7 +22,7 @@ int main() {
     testRawMessageStruct.testShort = 10;
 
     // Initialize library settings
-    if (mmw_initialize("127.0.0.1", 5000) != MMW_OK) {
+    if (mmw_initialize("127.0.0.1", 5000, MMW_TRANSPORT_TCP) != MMW_OK) {
         spdlog::error("Failed to initialize MMW");
         return -1;
     }
@@ -45,4 +45,5 @@ int main() {
         spdlog::error("Failed to cleanup MMW resources");
         return -1;
     }
+
 }

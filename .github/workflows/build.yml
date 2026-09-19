@@ -30,6 +30,22 @@ jobs:
         if: runner.os == 'Windows'
         run: .\vcpkg\vcpkg.exe install sqlite3
 
+      - name: Install Boost (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://archives.boost.io/release/1.92.0/source/boost_1_92_0.zip -OutFile boost.zip
+          Expand-Archive boost.zip -DestinationPath C:\
+          echo "BOOST_ROOT=C:\boost_1_92_0" >> $env:GITHUB_ENV
+
+      - name: Install Boost (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libboost-dev
+
+      - name: Install Boost (macOS)
+        if: runner.os == 'macOS'
+        run: brew install boost
+
       - name: Configure CMake (Windows)
         if: runner.os == 'Windows'
         run: >
@@ -64,6 +80,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install Boost (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libboost-dev
 
       - name: Configure CMake
         run: >
@@ -110,6 +130,22 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: .\vcpkg\bootstrap-vcpkg.bat
+
+      - name: Install Boost (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://archives.boost.io/release/1.92.0/source/boost_1_92_0.zip -OutFile boost.zip
+          Expand-Archive boost.zip -DestinationPath C:\
+          echo "BOOST_ROOT=C:\boost_1_92_0" >> $env:GITHUB_ENV
+
+      - name: Install Boost (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libboost-dev
+
+      - name: Install Boost (macOS)
+        if: runner.os == 'macOS'
+        run: brew install boost
 
       - name: Install sqlite3 (Windows only)
         if: runner.os == 'Windows'

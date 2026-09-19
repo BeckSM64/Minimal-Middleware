@@ -2,7 +2,7 @@
 import mmw
 
 # mmw.set_log_level(mmw.MmwLogLevel.MMW_LOG_LEVEL_OFF)
-mmw.initialize("127.0.0.1", 5000)
+mmw.initialize("127.0.0.1", 5000, mmw.MmwTransport.MMW_TRANSPORT_TCP)
 mmw.create_publisher("Test Topic")
 mmw.create_publisher("Test Topic 2")
 for i in range(100):
