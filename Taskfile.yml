@@ -9,8 +9,8 @@ vars:
   SHARED: '{{.SHARED | default "OFF"}}'
   # Platform detection logic
   PYTHON_EXE: '{{if eq OS "windows"}}python{{else}}python3{{end}}'
-  VCPKG_PATH: 'C:/vcpkg/scripts/buildsystems/vcpkg.cmake'
-  EMSCRIPTEN_PATH: '{{.EMSCRIPTEN_PATH | default ""}}'
+  VCPKG_PATH: '{{.VCPKG_PATH | default ""}}'
+  # EMSCRIPTEN_PATH: '{{.EMSCRIPTEN_PATH | default ""}}'
 
 tasks:
   default:
@@ -34,6 +34,8 @@ tasks:
 
   build:web:
     desc: Build MMW with Emscripten
+    requires:
+      vars: [EMSCRIPTEN_PATH]
     cmds:
       - task: cmake:configure
         vars: { EXAMPLES: ON, EMSCRIPTEN_PATH: "{{.EMSCRIPTEN_PATH}}" }
