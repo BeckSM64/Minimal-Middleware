@@ -328,7 +328,7 @@ int main(int argc, char *argv[]) {
                 std::lock_guard<std::mutex> lock(ackMutex);
 
                 for (auto& clientPair : unackedMessages) {
-                    ITransport* transport = spdlog::set_level(spdlog::level::err);clientPair.first;
+                    ITransport* transport = clientPair.first;
                     auto& msgMap = clientPair.second;
 
                     for (auto& msgPair : msgMap) {
