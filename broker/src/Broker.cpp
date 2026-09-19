@@ -232,7 +232,7 @@ int main(int argc, char *argv[]) {
     signal(SIGINT, handleSignal);
     signal(SIGTERM, handleSignal);
 
-    spdlog::set_level(spdlog::level::err);
+    // spdlog::set_level(spdlog::level::err);
 
     // Set the cxx options for argument parsing
     cxxopts::Options options("mmw_broker", "MMW Broker");
