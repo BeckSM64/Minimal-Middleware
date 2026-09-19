@@ -11,7 +11,8 @@ namespace asio = boost::asio;
 namespace beast = boost::beast;
 namespace websocket = beast::websocket;
 
-BeastTransport::BeastTransport() {
+BeastTransport::BeastTransport()
+    : m_workGuard(m_ioc.get_executor()) {
 }
 
 BeastTransport::~BeastTransport() {
@@ -305,9 +306,8 @@ void BeastTransport::Close() {
 
     m_receiveCondition.notify_all();
 
-    if (m_ws != nullptr) {
-        m_ioc.stop();
-    }
+    m_workGuard.reset();
+    m_ioc.stop();
 
     if (m_ioThread.joinable()) {
         m_ioThread.join();

@@ -44,6 +44,10 @@ private:
 
     boost::asio::io_context m_ioc;
 
+    boost::asio::executor_work_guard<
+        boost::asio::io_context::executor_type
+    > m_workGuard;
+
     WebSocket* m_ws = nullptr;
     boost::asio::ip::tcp::acceptor* m_acceptor = nullptr;
 
