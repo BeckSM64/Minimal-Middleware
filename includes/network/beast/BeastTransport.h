@@ -1,8 +1,11 @@
 #pragma once
 
 #include <atomic>
-#include <mutex>
+#include <condition_variable>
+#include <deque>
+#include <memory>
 #include <string>
+#include <thread>
 
 #include <boost/asio.hpp>
 #include <boost/beast/core.hpp>
@@ -29,13 +32,58 @@ public:
     void Close() override;
 
 private:
+    struct PendingWrite {
+        std::string data;
+        MmwResult result;
+        bool done;
+        std::condition_variable condition;
+
+        PendingWrite()
+            : result(MMW_ERROR),
+              done(false) {
+        }
+    };
+
+    void StartIoThread();
+    void StartRead();
+    void StartNextWrite();
+
+    void HandleRead(
+        const boost::system::error_code& ec,
+        std::size_t bytesTransferred
+    );
+
+    void HandleWrite(
+        std::shared_ptr<PendingWrite> write,
+        const boost::system::error_code& ec,
+        std::size_t bytesTransferred
+    );
+
+    void SetReceiveStatus(MmwResult result);
+    void FailPendingWrites();
+
+private:
     boost::asio::io_context m_ioc;
 
     boost::beast::websocket::stream<
         boost::asio::ip::tcp::socket
-    >* m_ws = nullptr;
+    >* m_ws;
 
-    boost::asio::ip::tcp::acceptor* m_acceptor = nullptr;
+    boost::asio::ip::tcp::acceptor* m_acceptor;
 
-    std::mutex m_wsMutex;
+    boost::beast::flat_buffer m_readBuffer;
+
+    std::thread m_ioThread;
+
+    std::mutex m_receiveMutex;
+    std::condition_variable m_receiveCondition;
+    std::deque<std::string> m_receivedMessages;
+    MmwResult m_receiveStatus;
+
+    std::mutex m_writeMutex;
+    std::deque<std::shared_ptr<PendingWrite> > m_writeQueue;
+    bool m_writeInProgress;
+
+    std::atomic<bool> m_closing;
+    std::atomic<bool> m_ioStarted;
 };

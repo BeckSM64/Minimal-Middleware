@@ -14,15 +14,21 @@ namespace websocket = beast::websocket;
 
 BeastTransport::BeastTransport()
     : m_ws(nullptr),
-      m_acceptor(nullptr) {
+      m_acceptor(nullptr),
+      m_receiveStatus(MMW_OK),
+      m_writeInProgress(false),
+      m_closing(false),
+      m_ioStarted(false) {
 }
 
 BeastTransport::~BeastTransport() {
     Close();
 }
 
-MmwResult BeastTransport::Initialize(std::string& hostname, int port) {
-
+MmwResult BeastTransport::Initialize(
+    std::string& hostname,
+    int port
+) {
     m_hostname = hostname;
     m_brokerPort = port;
 
@@ -35,17 +41,17 @@ MmwResult BeastTransport::Initialize(std::string& hostname, int port) {
         );
 
         asio::ip::tcp::socket socket(m_ioc);
+
         asio::connect(socket, results);
 
-        {
-            std::lock_guard<std::mutex> lock(m_wsMutex);
+        m_ws = new websocket::stream<
+            asio::ip::tcp::socket
+        >(std::move(socket));
 
-            m_ws = new websocket::stream<asio::ip::tcp::socket>(
-                std::move(socket)
-            );
+        m_ws->handshake(m_hostname, "/");
+        m_ws->binary(true);
 
-            m_ws->handshake(m_hostname, "/");
-        }
+        StartIoThread();
 
         return MMW_OK;
     }
@@ -54,12 +60,12 @@ MmwResult BeastTransport::Initialize(std::string& hostname, int port) {
             "Failed to initialize Beast transport: {}",
             e.what()
         );
+
         return MMW_ERROR;
     }
 }
 
 MmwResult BeastTransport::InitializeServer(int port) {
-
     m_brokerPort = port;
 
     try {
@@ -83,64 +89,69 @@ MmwResult BeastTransport::InitializeServer(int port) {
             "Failed to initialize Beast server: {}",
             e.what()
         );
+
         return MMW_ERROR;
     }
 }
 
 MmwResult BeastTransport::Send(const std::string& data) {
-    try {
-        std::lock_guard<std::mutex> lock(m_wsMutex);
-
-        if (m_ws == nullptr) {
-            return MMW_ERROR;
-        }
-
-        m_ws->binary(true);
-        m_ws->write(asio::buffer(data));
-
-        return MMW_OK;
-    }
-    catch (const std::exception& e) {
-        spdlog::error(
-            "Beast send failed: {}",
-            e.what()
-        );
+    if (m_ws == nullptr || m_closing) {
         return MMW_ERROR;
     }
+
+    std::shared_ptr<PendingWrite> write =
+        std::make_shared<PendingWrite>();
+
+    write->data = data;
+
+    {
+        std::lock_guard<std::mutex> lock(m_writeMutex);
+        m_writeQueue.push_back(write);
+    }
+
+    asio::post(
+        m_ioc,
+        [this]() {
+            StartNextWrite();
+        }
+    );
+
+    std::unique_lock<std::mutex> lock(m_writeMutex);
+
+    write->condition.wait(
+        lock,
+        [&write]() {
+            return write->done;
+        }
+    );
+
+    return write->result;
 }
 
 MmwResult BeastTransport::Recv(std::string& data) {
-    try {
-        if (m_ws == nullptr) {
-            return MMW_ERROR;
+    std::unique_lock<std::mutex> lock(m_receiveMutex);
+
+    m_receiveCondition.wait(
+        lock,
+        [this]() {
+            return
+                !m_receivedMessages.empty() ||
+                m_receiveStatus != MMW_OK ||
+                m_closing;
         }
+    );
 
-        beast::flat_buffer buffer;
-
-        m_ws->read(buffer);
-
-        data = beast::buffers_to_string(buffer.data());
-
+    if (!m_receivedMessages.empty()) {
+        data = m_receivedMessages.front();
+        m_receivedMessages.pop_front();
         return MMW_OK;
     }
-    catch (const beast::system_error& e) {
-        if (e.code() == websocket::error::closed) {
-            return MMW_DISCONNECTED;
-        }
 
-        spdlog::error(
-            "Beast recv failed: {}",
-            e.what()
-        );
-        return MMW_ERROR;
+    if (m_receiveStatus != MMW_OK) {
+        return m_receiveStatus;
     }
-    catch (const std::exception& e) {
-        spdlog::error(
-            "Beast recv failed: {}",
-            e.what()
-        );
-        return MMW_ERROR;
-    }
+
+    return MMW_DISCONNECTED;
 }
 
 MmwResult BeastTransport::Accept(
@@ -156,20 +167,18 @@ MmwResult BeastTransport::Accept(
 
         m_acceptor->accept(socket);
 
-        BeastTransport* clientTransport = new BeastTransport();
+        BeastTransport* clientTransport =
+            new BeastTransport();
 
-        {
-            std::lock_guard<std::mutex> lock(
-                clientTransport->m_wsMutex
-            );
+        clientTransport->m_ws =
+            new websocket::stream<
+                asio::ip::tcp::socket
+            >(std::move(socket));
 
-            clientTransport->m_ws =
-                new websocket::stream<asio::ip::tcp::socket>(
-                    std::move(socket)
-                );
+        clientTransport->m_ws->accept();
+        clientTransport->m_ws->binary(true);
 
-            clientTransport->m_ws->accept();
-        }
+        clientTransport->StartIoThread();
 
         client = clientTransport;
 
@@ -191,22 +200,219 @@ MmwResult BeastTransport::Accept(
     }
 }
 
-void BeastTransport::Close() {
+void BeastTransport::StartIoThread() {
+    if (m_ioStarted) {
+        return;
+    }
 
-    {
-        std::lock_guard<std::mutex> lock(m_wsMutex);
+    m_ioStarted = true;
 
-        if (m_ws != nullptr) {
-            beast::error_code ec;
+    m_ioc.post(
+        [this]() {
+            StartRead();
+        }
+    );
 
-            m_ws->close(
-                websocket::close_code::normal,
-                ec
+    m_ioThread = std::thread(
+        [this]() {
+            m_ioc.run();
+        }
+    );
+}
+
+void BeastTransport::StartRead() {
+    if (m_ws == nullptr || m_closing) {
+        return;
+    }
+
+    m_ws->async_read(
+        m_readBuffer,
+        [this](
+            const boost::system::error_code& ec,
+            std::size_t bytesTransferred
+        ) {
+            HandleRead(ec, bytesTransferred);
+        }
+    );
+}
+
+void BeastTransport::HandleRead(
+    const boost::system::error_code& ec,
+    std::size_t
+) {
+    if (ec) {
+        if (ec == websocket::error::closed) {
+            SetReceiveStatus(MMW_DISCONNECTED);
+        }
+        else if (!m_closing) {
+            spdlog::error(
+                "Beast recv failed: {}",
+                ec.message()
             );
 
-            delete m_ws;
-            m_ws = nullptr;
+            SetReceiveStatus(MMW_ERROR);
         }
+
+        FailPendingWrites();
+        return;
+    }
+
+    std::string data =
+        beast::buffers_to_string(m_readBuffer.data());
+
+    m_readBuffer.consume(m_readBuffer.size());
+
+    {
+        std::lock_guard<std::mutex> lock(m_receiveMutex);
+        m_receivedMessages.push_back(data);
+    }
+
+    m_receiveCondition.notify_one();
+
+    StartRead();
+}
+
+void BeastTransport::StartNextWrite() {
+    if (m_ws == nullptr || m_closing) {
+        FailPendingWrites();
+        return;
+    }
+
+    std::shared_ptr<PendingWrite> write;
+
+    {
+        std::lock_guard<std::mutex> lock(m_writeMutex);
+
+        if (m_writeInProgress ||
+            m_writeQueue.empty()) {
+            return;
+        }
+
+        write = m_writeQueue.front();
+        m_writeInProgress = true;
+    }
+
+    m_ws->async_write(
+        asio::buffer(write->data),
+        [this, write](
+            const boost::system::error_code& ec,
+            std::size_t bytesTransferred
+        ) {
+            HandleWrite(
+                write,
+                ec,
+                bytesTransferred
+            );
+        }
+    );
+}
+
+void BeastTransport::HandleWrite(
+    std::shared_ptr<PendingWrite> write,
+    const boost::system::error_code& ec,
+    std::size_t
+) {
+    {
+        std::lock_guard<std::mutex> lock(m_writeMutex);
+
+        if (ec) {
+            write->result = MMW_ERROR;
+        }
+        else {
+            write->result = MMW_OK;
+        }
+
+        write->done = true;
+
+        if (!m_writeQueue.empty() &&
+            m_writeQueue.front() == write) {
+            m_writeQueue.pop_front();
+        }
+
+        m_writeInProgress = false;
+    }
+
+    write->condition.notify_one();
+
+    if (ec) {
+        if (!m_closing) {
+            spdlog::error(
+                "Beast send failed: {}",
+                ec.message()
+            );
+
+            SetReceiveStatus(MMW_ERROR);
+        }
+
+        FailPendingWrites();
+        return;
+    }
+
+    StartNextWrite();
+}
+
+void BeastTransport::SetReceiveStatus(MmwResult result) {
+    {
+        std::lock_guard<std::mutex> lock(m_receiveMutex);
+
+        if (m_receiveStatus == MMW_OK) {
+            m_receiveStatus = result;
+        }
+    }
+
+    m_receiveCondition.notify_all();
+}
+
+void BeastTransport::FailPendingWrites() {
+    std::deque<std::shared_ptr<PendingWrite> > pending;
+
+    {
+        std::lock_guard<std::mutex> lock(m_writeMutex);
+
+        pending.swap(m_writeQueue);
+        m_writeInProgress = false;
+
+        for (
+            std::deque<std::shared_ptr<PendingWrite> >::iterator it =
+                pending.begin();
+            it != pending.end();
+            ++it
+        ) {
+            (*it)->result = MMW_ERROR;
+            (*it)->done = true;
+        }
+    }
+
+    for (
+        std::deque<std::shared_ptr<PendingWrite> >::iterator it =
+            pending.begin();
+        it != pending.end();
+        ++it
+    ) {
+        (*it)->condition.notify_one();
+    }
+}
+
+void BeastTransport::Close() {
+    if (m_closing.exchange(true)) {
+        return;
+    }
+
+    m_receiveCondition.notify_all();
+
+    FailPendingWrites();
+
+    if (m_ioStarted) {
+        m_ioc.stop();
+
+        if (m_ioThread.joinable()) {
+            m_ioThread.join();
+        }
+    }
+
+    if (m_ws != nullptr) {
+        delete m_ws;
+        m_ws = nullptr;
     }
 
     if (m_acceptor != nullptr) {
