@@ -1,7 +1,11 @@
 #pragma once
 
 #include <atomic>
+#include <condition_variable>
+#include <deque>
+#include <mutex>
 #include <string>
+#include <thread>
 
 #include <boost/asio.hpp>
 #include <boost/beast/core.hpp>
@@ -28,11 +32,33 @@ public:
     void Close() override;
 
 private:
+    typedef boost::asio::ip::tcp::socket TcpSocket;
+    typedef boost::beast::websocket::stream<TcpSocket> WebSocket;
+
+    void startIo();
+    void startRead();
+    void startWrite();
+
+    void failReads(MmwResult result);
+    void failWrites();
+
     boost::asio::io_context m_ioc;
 
-    boost::beast::websocket::stream<
-        boost::asio::ip::tcp::socket
-    >* m_ws = nullptr;
-
+    WebSocket* m_ws = nullptr;
     boost::asio::ip::tcp::acceptor* m_acceptor = nullptr;
+
+    std::thread m_ioThread;
+
+    std::mutex m_receiveMutex;
+    std::condition_variable m_receiveCondition;
+    std::deque<std::string> m_receiveQueue;
+    MmwResult m_receiveResult = MMW_OK;
+
+    std::mutex m_writeMutex;
+    std::deque<std::string> m_writeQueue;
+    bool m_writeInProgress = false;
+
+    std::atomic<bool> m_closing{false};
+
+    boost::beast::flat_buffer m_readBuffer;
 };

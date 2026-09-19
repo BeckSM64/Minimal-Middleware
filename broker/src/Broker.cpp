@@ -65,16 +65,22 @@ inline bool sendMessage(ITransport* transport, const std::string& data) {
 }
 
 // Helper function to route messages to subscribers
-void routeMessageToSubscribers(const std::string& topic, const MmwMessage& msg) {
+void routeMessageToSubscribers(
+    const std::string& topic,
+    const MmwMessage& msg
+) {
     if (topic.empty()) {
         return;
     }
 
     std::vector<ITransport*> targets;
+
     {
         std::lock_guard<std::mutex> lock(clientListMutex);
+
         for (auto& client : connectedClientList) {
-            if (client.type == "subscriber" && client.topic == topic) {
+            if (client.type == "subscriber" &&
+                client.topic == topic) {
                 targets.push_back(client.transport);
             }
         }
@@ -83,29 +89,45 @@ void routeMessageToSubscribers(const std::string& topic, const MmwMessage& msg) 
     std::string serialized = g_serializer->serialize(msg);
 
     for (ITransport* transport : targets) {
+
+        // Register the pending ACK BEFORE sending.
+        if (msg.reliability) {
+            std::lock_guard<std::mutex> lock(ackMutex);
+
+            PendingAck ack;
+            ack.msg = msg;
+            ack.timestamp = std::chrono::steady_clock::now();
+            ack.retryCount = 0;
+
+            unackedMessages[transport][msg.messageId] = ack;
+        }
+
         if (!sendMessage(transport, serialized)) {
-            spdlog::error("send to subscriber failed, removing client");
+            spdlog::error(
+                "send to subscriber failed, removing client"
+            );
+
+            if (msg.reliability) {
+                std::lock_guard<std::mutex> lock(ackMutex);
+                unackedMessages[transport].erase(msg.messageId);
+            }
+
             std::lock_guard<std::mutex> lock(clientListMutex);
+
             connectedClientList.erase(
                 std::remove_if(
-                    connectedClientList.begin(), connectedClientList.end(),
-                        [transport](const ConnectedTransportClient& c){
+                    connectedClientList.begin(),
+                    connectedClientList.end(),
+                    [transport](
+                        const ConnectedTransportClient& c
+                    ) {
                         return c.transport == transport;
                     }
                 ),
                 connectedClientList.end()
             );
-            transport->Close();
-        
-        // Only track unacked messages if reliability was set
-        } else if (msg.reliability) {
-            std::lock_guard<std::mutex> lock(ackMutex);
-            PendingAck ack;
-            ack.msg = msg;
-            ack.timestamp = std::chrono::steady_clock::now();
-            ack.retryCount = 0;
-            unackedMessages[transport][msg.messageId] = ack;
 
+            transport->Close();
         }
     }
 }
