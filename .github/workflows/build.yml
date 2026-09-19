@@ -36,7 +36,7 @@ jobs:
 
       - name: Install Boost (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libboost-all-dev
+        run: sudo apt-get update && sudo apt-get install -y libboost-dev
 
       - name: Install Boost (macOS)
         if: runner.os == 'macOS'
@@ -122,6 +122,18 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: .\vcpkg\bootstrap-vcpkg.bat
+
+      - name: Install Boost (Windows)
+        if: runner.os == 'Windows'
+        run: vcpkg install boost:x64-windows
+
+      - name: Install Boost (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libboost-dev
+
+      - name: Install Boost (macOS)
+        if: runner.os == 'macOS'
+        run: brew install boost
 
       - name: Install sqlite3 (Windows only)
         if: runner.os == 'Windows'
