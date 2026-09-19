@@ -37,11 +37,15 @@ MmwResult BeastTransport::Initialize(std::string& hostname, int port) {
         asio::ip::tcp::socket socket(m_ioc);
         asio::connect(socket, results);
 
-        m_ws = std::make_shared<
-            websocket::stream<asio::ip::tcp::socket>
-        >(std::move(socket));
+        {
+            std::lock_guard<std::mutex> lock(m_wsMutex);
 
-        m_ws->handshake(m_hostname, "/");
+            m_ws = new websocket::stream<asio::ip::tcp::socket>(
+                std::move(socket)
+            );
+
+            m_ws->handshake(m_hostname, "/");
+        }
 
         return MMW_OK;
     }
@@ -59,9 +63,7 @@ MmwResult BeastTransport::InitializeServer(int port) {
     m_brokerPort = port;
 
     try {
-        m_acceptor = std::make_shared<
-            asio::ip::tcp::acceptor
-        >(
+        m_acceptor = new asio::ip::tcp::acceptor(
             m_ioc,
             asio::ip::tcp::endpoint(
                 asio::ip::tcp::v4(),
@@ -87,16 +89,14 @@ MmwResult BeastTransport::InitializeServer(int port) {
 
 MmwResult BeastTransport::Send(const std::string& data) {
     try {
-        std::shared_ptr<
-            websocket::stream<asio::ip::tcp::socket>
-        > ws = m_ws;
+        std::lock_guard<std::mutex> lock(m_wsMutex);
 
-        if (ws == nullptr) {
+        if (m_ws == nullptr) {
             return MMW_ERROR;
         }
 
-        ws->binary(true);
-        ws->write(asio::buffer(data));
+        m_ws->binary(true);
+        m_ws->write(asio::buffer(data));
 
         return MMW_OK;
     }
@@ -111,17 +111,13 @@ MmwResult BeastTransport::Send(const std::string& data) {
 
 MmwResult BeastTransport::Recv(std::string& data) {
     try {
-        std::shared_ptr<
-            websocket::stream<asio::ip::tcp::socket>
-        > ws = m_ws;
-
-        if (ws == nullptr) {
+        if (m_ws == nullptr) {
             return MMW_ERROR;
         }
 
         beast::flat_buffer buffer;
 
-        ws->read(buffer);
+        m_ws->read(buffer);
 
         data = beast::buffers_to_string(buffer.data());
 
@@ -162,12 +158,18 @@ MmwResult BeastTransport::Accept(
 
         BeastTransport* clientTransport = new BeastTransport();
 
-        clientTransport->m_ws =
-            std::make_shared<
-                websocket::stream<asio::ip::tcp::socket>
-            >(std::move(socket));
+        {
+            std::lock_guard<std::mutex> lock(
+                clientTransport->m_wsMutex
+            );
 
-        clientTransport->m_ws->accept();
+            clientTransport->m_ws =
+                new websocket::stream<asio::ip::tcp::socket>(
+                    std::move(socket)
+                );
+
+            clientTransport->m_ws->accept();
+        }
 
         client = clientTransport;
 
@@ -191,29 +193,28 @@ MmwResult BeastTransport::Accept(
 
 void BeastTransport::Close() {
 
-    std::shared_ptr<
-        websocket::stream<asio::ip::tcp::socket>
-    > ws = m_ws;
+    {
+        std::lock_guard<std::mutex> lock(m_wsMutex);
 
-    m_ws.reset();
+        if (m_ws != nullptr) {
+            beast::error_code ec;
 
-    if (ws != nullptr) {
-        beast::error_code ec;
+            m_ws->close(
+                websocket::close_code::normal,
+                ec
+            );
 
-        ws->close(
-            websocket::close_code::normal,
-            ec
-        );
+            delete m_ws;
+            m_ws = nullptr;
+        }
     }
 
-    std::shared_ptr<
-        asio::ip::tcp::acceptor
-    > acceptor = m_acceptor;
-
-    m_acceptor.reset();
-
-    if (acceptor != nullptr) {
+    if (m_acceptor != nullptr) {
         beast::error_code ec;
-        acceptor->close(ec);
+
+        m_acceptor->close(ec);
+
+        delete m_acceptor;
+        m_acceptor = nullptr;
     }
 }
