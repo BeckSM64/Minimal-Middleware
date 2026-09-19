@@ -96,7 +96,11 @@ void routeMessageToSubscribers(const std::string& topic, const MmwMessage& msg) 
         }
 
         if (!sendMessage(transport, serialized)) {
-            spdlog::error("send to subscriber failed, removing client");
+            spdlog::error(
+                "Failed to route {} message {} to subscriber",
+                msg.topic,
+                msg.messageId
+            );
             std::lock_guard<std::mutex> lock(clientListMutex);
             connectedClientList.erase(
                 std::remove_if(
@@ -228,6 +232,8 @@ int main(int argc, char *argv[]) {
     signal(SIGINT, handleSignal);
     signal(SIGTERM, handleSignal);
 
+    spdlog::set_level(spdlog::level::err);
+
     // Set the cxx options for argument parsing
     cxxopts::Options options("mmw_broker", "MMW Broker");
     options.add_options()
@@ -322,7 +328,7 @@ int main(int argc, char *argv[]) {
                 std::lock_guard<std::mutex> lock(ackMutex);
 
                 for (auto& clientPair : unackedMessages) {
-                    ITransport* transport = clientPair.first;
+                    ITransport* transport = spdlog::set_level(spdlog::level::err);clientPair.first;
                     auto& msgMap = clientPair.second;
 
                     for (auto& msgPair : msgMap) {
