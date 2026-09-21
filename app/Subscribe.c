@@ -18,7 +18,7 @@ int main() {
     }
 
     // Sleep to keep subscriber up
-    mmw_wait();
+    mmw_wait(0);
 
     // Cleanup
     if (mmw_cleanup() != MMW_OK) {

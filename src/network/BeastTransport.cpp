@@ -102,7 +102,7 @@ void BeastTransport::startRead() {
         m_readBuffer,
         [this](beast::error_code ec, std::size_t) {
             if (ec) {
-                if (ec == websocket::error::closed) {
+                if (ec == websocket::error::closed || ec == asio::error::eof) {
                     failReads(MMW_DISCONNECTED);
                 }
                 else {

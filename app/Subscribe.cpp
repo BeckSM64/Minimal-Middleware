@@ -33,7 +33,7 @@ int main() {
 
     spdlog::info("Subscriber running. Waiting for messages...");
 
-    mmw_wait();
+    mmw_wait(0);
 
     mmw_delete_subscriber("Test Topic");
     mmw_delete_subscriber("Test Topic 2");

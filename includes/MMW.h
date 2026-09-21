@@ -3,9 +3,11 @@
 
 #ifdef __cplusplus
 #include <cstddef>
+#include <cstdint>
 extern "C" {
 #else
 #include <stddef.h>
+#include <stdint.h>
 #endif
 
 typedef enum {
@@ -60,7 +62,7 @@ void mmw_set_log_level(MmwLogLevel level);
  * @param port Port the broker is accepting connections on.
  * @return MMW_OK on success, MMW_ERROR on failure.
  */
-MmwResult mmw_initialize(const char* brokerIp, unsigned short port, MmwTransport transport);
+MmwResult mmw_initialize(const char* brokerIp, uint16_t port, MmwTransport transport);
 
 /**
  * @brief Create a publisher for a topic.
@@ -118,14 +120,14 @@ MmwResult mmw_publish(const char* topic, const char* message, MmwReliability rel
 MmwResult mmw_publish_raw(const char* topic, void* message, size_t size, MmwReliability reliability);
 
 /**
- * @brief Blocks until mmw_stop() is called.
+ * @brief Blocks until milliseconds is reached or mmw_stop() is called.
  *
  * On native platforms, this blocks the calling thread. On Emscripten,
  * the browser event loop continues running while waiting.
  *
  * @return MMW_OK on success.
  */
-MmwResult mmw_wait();
+MmwResult mmw_wait(uint64_t milliseconds);
 
 /**
  * @brief Stops a thread blocked in mmw_wait().

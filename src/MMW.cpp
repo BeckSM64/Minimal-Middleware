@@ -96,7 +96,7 @@ void mmw_set_log_level(MmwLogLevel level) {
 /**
  * Initialize library settings
  */
-MmwResult mmw_initialize(const char* brokerIp, unsigned short port, MmwTransport transport) {
+MmwResult mmw_initialize(const char* brokerIp, uint16_t port, MmwTransport transport) {
 
     if (!brokerIp || port == 0) {
         spdlog::error("No broker IP or port provided");
@@ -386,19 +386,26 @@ MmwResult mmw_publish_raw(const char* topic, void* payload, size_t size, MmwReli
 /**
  * Block until mmw_stop is called
  */
-MmwResult mmw_wait() {
-    running = true;
-
+MmwResult mmw_wait(uint64_t milliseconds) {
 #ifdef EMSCRIPTEN
-    while (running) {
-        emscripten_sleep(100);
+    if (time == 0) {
+        while (true) {
+            emscripten_sleep(1000);
+        }
+    } else {
+        emscripten_sleep(time);
     }
 #else
     std::unique_lock<std::mutex> lock(waitMutex);
 
-    waitCondition.wait(lock, [] {
-        return !running.load();
-    });
+    if (milliseconds == 0) {
+        waitCondition.wait(lock);
+    } else {
+        waitCondition.wait_for(
+            lock,
+            std::chrono::milliseconds(milliseconds)
+        );
+    }
 #endif
 
     return MMW_OK;
@@ -409,9 +416,7 @@ MmwResult mmw_wait() {
  */
 MmwResult mmw_stop() {
     running = false;
-
     waitCondition.notify_all();
-
     return MMW_OK;
 }
 

@@ -47,7 +47,7 @@ int main() {
     }
 
     // Stay alive so subscriber stays up
-    mmw_wait();
+    mmw_wait(0);
 
     if (mmw_cleanup() != MMW_OK) {
         spdlog::error("Failed to cleanup MMW resources");
