@@ -39,11 +39,9 @@ MmwResult EmscriptenTransport::Initialize(
     spdlog::info("WebSocket is supported");
 
     std::string url =
-        "ws://" +
+        "wss://" +
         m_hostname +
-        ":" +
-        std::to_string(m_brokerPort) +
-        "/";
+        ":9443";
 
     spdlog::info("Creating WebSocket: {}", url);
 
