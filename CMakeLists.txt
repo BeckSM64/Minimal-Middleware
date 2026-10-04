@@ -36,6 +36,15 @@ FetchContent_Declare(
 )
 FetchContent_Populate(cereal)
 
+# Fetch CXXOPTS
+FetchContent_Declare(
+    cxxopts
+    GIT_REPOSITORY https://github.com/jarro2783/cxxopts.git
+    GIT_TAG v3.3.1
+)
+
+FetchContent_MakeAvailable(cxxopts)
+
 # Set the serializer
 if(CEREAL_SERIALIZER)
     add_compile_definitions(CEREAL_SERIALIZER)
@@ -49,14 +58,45 @@ else()
     set(SERIALIZER_SRC ${CMAKE_CURRENT_LIST_DIR}/src/serialization/CerealSerializer.cpp)
 endif()
 
+if(EMSCRIPTEN)
+    add_compile_definitions(EMSCRIPTEN)
+    set(
+        TRANSPORT_SOURCES
+        ${CMAKE_CURRENT_LIST_DIR}/src/network/EmscriptenTransport.cpp
+    )
+    set(
+        TRANSPORT_INCLUDES
+        ${CMAKE_CURRENT_LIST_DIR}/includes/network/emscripten/
+    )
+else()
+    set(
+        TRANSPORT_SOURCES
+        ${CMAKE_CURRENT_LIST_DIR}/src/network/TcpTransport.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/src/network/BeastTransport.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/src/network/SocketAbstraction.cpp
+    )
+    set(
+        TRANSPORT_INCLUDES
+        ${CMAKE_CURRENT_LIST_DIR}/includes/network/tcp/
+        ${CMAKE_CURRENT_LIST_DIR}/includes/network/beast/
+    )
+endif()
+
 # Create the mmw core library
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 add_library(
     mmw_core
     ${CMAKE_CURRENT_LIST_DIR}/src/serialization/SerializerAbstraction.cpp
     ${SERIALIZER_SRC}
-    ${CMAKE_CURRENT_LIST_DIR}/src/network/SocketAbstraction.cpp
+    ${TRANSPORT_SOURCES}
 )
+
+if(NOT EMSCRIPTEN)
+    find_package(Boost REQUIRED)
+    set(BOOST_LIBRARY Boost::boost)
+endif()
+
+target_link_libraries(mmw_core PUBLIC spdlog::spdlog_header_only ${BOOST_LIBRARY})
 
 # Create the mmw library
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -79,8 +119,8 @@ target_include_directories(mmw_core PUBLIC
     $<INSTALL_INTERFACE:include>
 )
 
-target_include_directories(mmw PRIVATE ${CMAKE_CURRENT_LIST_DIR}/ ${CMAKE_CURRENT_LIST_DIR}/includes/ ${cereal_SOURCE_DIR}/include/)
-target_include_directories(mmw_core PRIVATE ${CMAKE_CURRENT_LIST_DIR}/ ${CMAKE_CURRENT_LIST_DIR}/includes/ ${cereal_SOURCE_DIR}/include/)
+target_include_directories(mmw PRIVATE ${CMAKE_CURRENT_LIST_DIR}/ ${CMAKE_CURRENT_LIST_DIR}/includes/ ${TRANSPORT_INCLUDES} ${cereal_SOURCE_DIR}/include/)
+target_include_directories(mmw_core PRIVATE ${CMAKE_CURRENT_LIST_DIR}/ ${CMAKE_CURRENT_LIST_DIR}/includes/ ${TRANSPORT_INCLUDES} ${cereal_SOURCE_DIR}/include/)
 
 # Link Libraries
 if(WIN32)
@@ -95,14 +135,46 @@ if(BUILD_BROKER)
         mmw_broker ${CMAKE_CURRENT_LIST_DIR}/broker/src/Broker.cpp
         ${CMAKE_CURRENT_LIST_DIR}/broker/src/BrokerPersistence.cpp
     )
-    target_include_directories(mmw_broker PRIVATE ${CMAKE_CURRENT_LIST_DIR}/broker/includes/ ${CMAKE_CURRENT_LIST_DIR}/includes/ ${cereal_SOURCE_DIR}/include/)
+    target_include_directories(mmw_broker PRIVATE ${CMAKE_CURRENT_LIST_DIR}/broker/includes/ ${CMAKE_CURRENT_LIST_DIR}/includes/ ${TRANSPORT_INCLUDES} ${cereal_SOURCE_DIR}/include/)
     if(WIN32)
         find_package(unofficial-sqlite3 CONFIG REQUIRED)
-        target_link_libraries(mmw_broker mmw_core nlohmann_json::nlohmann_json spdlog::spdlog_header_only ws2_32 unofficial::sqlite3::sqlite3)
+        target_link_libraries(mmw_broker mmw_core nlohmann_json::nlohmann_json spdlog::spdlog_header_only ws2_32 unofficial::sqlite3::sqlite3 cxxopts)
     else()
         find_package(SQLite3 REQUIRED)
-        target_link_libraries(mmw_broker mmw_core nlohmann_json::nlohmann_json pthread spdlog::spdlog_header_only SQLite::SQLite3)
+        target_link_libraries(mmw_broker mmw_core nlohmann_json::nlohmann_json pthread spdlog::spdlog_header_only SQLite::SQLite3 cxxopts)
     endif()
+endif()
+
+if(EMSCRIPTEN)
+    target_compile_options(mmw PRIVATE
+        -pthread
+        -matomics
+        -mbulk-memory
+    )
+
+    target_link_options(mmw INTERFACE
+        -pthread
+        -matomics
+        -mbulk-memory
+        -lwebsocket.js
+        -sASYNCIFY
+    )
+endif()
+
+if(EMSCRIPTEN)
+    target_compile_options(mmw_core PRIVATE
+        -pthread
+        -matomics
+        -mbulk-memory
+    )
+
+    target_link_options(mmw_core INTERFACE
+        -pthread
+        -matomics
+        -mbulk-memory
+        -lwebsocket.js
+        -sASYNCIFY
+    )
 endif()
 
 # Build sample apps if requested
@@ -128,6 +200,99 @@ if(BUILD_SAMPLE_APPS)
         target_link_libraries(subscribe_c PRIVATE mmw)
         target_link_libraries(publish_raw PRIVATE mmw)
         target_link_libraries(subscribe_raw PRIVATE mmw)
+
+    elseif(EMSCRIPTEN)
+        target_link_libraries(publish PRIVATE mmw)
+        target_link_libraries(subscribe PRIVATE mmw)
+        target_link_libraries(publish_c PRIVATE mmw)
+        target_link_libraries(subscribe_c PRIVATE mmw)
+        target_link_libraries(publish_raw PRIVATE mmw)
+        target_link_libraries(subscribe_raw PRIVATE mmw)
+
+        target_compile_options(publish PRIVATE
+            -pthread
+            -matomics
+            -mbulk-memory
+        )
+        target_link_options(publish PRIVATE
+            -pthread
+            -matomics
+            -mbulk-memory
+            -lwebsocket.js
+            -sASYNCIFY
+            -sPTHREAD_POOL_SIZE=4
+        )
+
+        target_compile_options(subscribe PRIVATE
+            -pthread
+            -matomics
+            -mbulk-memory
+        )
+        target_link_options(subscribe PRIVATE
+            -pthread
+            -matomics
+            -mbulk-memory
+            -lwebsocket.js
+            -sASYNCIFY
+            -sPTHREAD_POOL_SIZE=4
+        )
+
+        target_compile_options(publish_c PRIVATE
+            -pthread
+            -matomics
+            -mbulk-memory
+        )
+        target_link_options(publish_c PRIVATE
+            -pthread
+            -matomics
+            -mbulk-memory
+            -lwebsocket.js
+            -sASYNCIFY
+            -sPTHREAD_POOL_SIZE=2
+        )
+
+        target_compile_options(subscribe_c PRIVATE
+            -pthread
+            -matomics
+            -mbulk-memory
+        )
+        target_link_options(subscribe_c PRIVATE
+            -pthread
+            -matomics
+            -mbulk-memory
+            -lwebsocket.js
+            -sASYNCIFY
+            -sPTHREAD_POOL_SIZE=2
+        )
+
+        target_compile_options(publish_raw PRIVATE
+            -pthread
+            -matomics
+            -mbulk-memory
+        )
+        target_link_options(publish_raw PRIVATE
+            -pthread
+            -matomics
+            -mbulk-memory
+            -lwebsocket.js
+            -sASYNCIFY
+            -sPTHREAD_POOL_SIZE=4
+        )
+
+        target_compile_options(subscribe_raw PRIVATE
+            -pthread
+            -matomics
+            -mbulk-memory
+        )
+        target_link_options(subscribe_raw PRIVATE
+            -pthread
+            -matomics
+            -mbulk-memory
+            -lwebsocket.js
+            -sASYNCIFY
+            -sPTHREAD_POOL_SIZE=4
+        )
+
     else()
         target_link_libraries(publish PRIVATE mmw pthread)
         target_link_libraries(subscribe PRIVATE mmw pthread)

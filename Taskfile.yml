@@ -9,7 +9,8 @@ vars:
   SHARED: '{{.SHARED | default "OFF"}}'
   # Platform detection logic
   PYTHON_EXE: '{{if eq OS "windows"}}python{{else}}python3{{end}}'
-  VCPKG_PATH: 'C:/vcpkg/scripts/buildsystems/vcpkg.cmake'
+  VCPKG_PATH: '{{.VCPKG_PATH | default ""}}'
+  # EMSCRIPTEN_PATH: '{{.EMSCRIPTEN_PATH | default ""}}'
 
 tasks:
   default:
@@ -20,22 +21,53 @@ tasks:
     desc: Build everything
     cmds:
       - task: build
-        vars: { BROKER: ON, EXAMPLES: ON, PYTHON: ON, SHARED: "{{.SHARED}}" }
+        vars: { BROKER: ON, EXAMPLES: ON, PYTHON: ON, SHARED: "{{.SHARED}}", EMSCRIPTEN_PATH: "{{.EMSCRIPTEN_PATH}}" }
 
   build:
     desc: Build MMW with optional flags
     cmds:
       - task: cmake:configure
-        vars: { BROKER: "{{.BROKER}}", EXAMPLES: "{{.EXAMPLES}}", PYTHON: "{{.PYTHON}}", SHARED: "{{.SHARED}}" }
+        vars: { BROKER: "{{.BROKER}}", EXAMPLES: "{{.EXAMPLES}}", PYTHON: "{{.PYTHON}}", SHARED: "{{.SHARED}}", EMSCRIPTEN_PATH: "{{.EMSCRIPTEN_PATH}}" }
       - task: cmake:build
       - task: python:install
         vars: { PYTHON: '{{.PYTHON}}' }
+
+  build:web:
+    desc: Build MMW with Emscripten
+    requires:
+      vars: [EMSCRIPTEN_PATH]
+    cmds:
+      - task: cmake:configure
+        vars: { EXAMPLES: ON, EMSCRIPTEN_PATH: "{{.EMSCRIPTEN_PATH}}" }
+      - task: cmake:build
 
   cmake:configure:
     internal: true
     cmds:
       - mkdir -p build/
       - >
+        {{if and (ne .EMSCRIPTEN_PATH "") (eq OS "windows")}}
+        cmd.exe /c
+        ""{{.EMSCRIPTEN_PATH}}\emsdk_env.bat" &&
+        emcmake cmake -S . -B build/
+        -DBUILD_BROKER={{.BROKER}}
+        -DBUILD_SAMPLE_APPS={{.EXAMPLES}}
+        -DBUILD_PYTHON_MODULE={{.PYTHON}}
+        -D{{.SERIALIZER}}=ON
+        -DBUILD_SHARED_LIBS={{.SHARED}}
+        -DCMAKE_BUILD_TYPE=Debug
+        -DEMSCRIPTEN=ON"
+        {{else if ne .EMSCRIPTEN_PATH ""}}
+        bash -c 'source {{.EMSCRIPTEN_PATH}}/emsdk_env.sh &&
+        emcmake cmake -S . -B build/
+        -DBUILD_BROKER={{.BROKER}}
+        -DBUILD_SAMPLE_APPS={{.EXAMPLES}}
+        -DBUILD_PYTHON_MODULE={{.PYTHON}}
+        -D{{.SERIALIZER}}=ON
+        -DBUILD_SHARED_LIBS={{.SHARED}}
+        -DCMAKE_BUILD_TYPE=Debug
+        -DEMSCRIPTEN=ON'
+        {{else}}
         cmake -S . -B build/
         -DBUILD_BROKER={{.BROKER}}
         -DBUILD_SAMPLE_APPS={{.EXAMPLES}}
@@ -46,6 +78,7 @@ tasks:
         -DCMAKE_TOOLCHAIN_FILE={{.VCPKG_PATH}}
         {{end}}
         -DCMAKE_BUILD_TYPE=Debug
+        {{end}}
 
   cmake:build:
     internal: true
@@ -57,6 +90,8 @@ tasks:
     dir: ./
     status:
       - test "{{.PYTHON}}" != "ON"
+    env:
+      CMAKE_TOOLCHAIN_FILE: '{{.VCPKG_PATH}}'
     cmds:
       - "{{.PYTHON_EXE}} -m pip install -r requirements.txt"
       - "{{.PYTHON_EXE}} -m build ."

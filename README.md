@@ -1,7 +1,7 @@
 # Minimal Middleware (MMW)
 
 MMW is a lightweight, broker-based publish/subscribe middleware implemented in C++.
-It allows applications to easily exchange messages across processes or systems using simple network sockets and JSON or binary serialization.
+It allows applications to easily exchange messages across processes or systems using TCP or WebSockets and JSON or binary serialization.
 
 # ✨ Features
 
@@ -9,6 +9,7 @@ It allows applications to easily exchange messages across processes or systems u
 - C-compatible interface
 - Configurable serialization using nlohmann::json or cereal
 - Cross-platform TCP communication (Linux/Windows/MacOS)
+- Cross-platform WebSocket communication (Linux/Windows/MacOS) via Boost.Beast
 - spdlog-based logging
 - Simple interface for publishers and subscribers
 - Extensible message format
@@ -35,6 +36,8 @@ This will build the documentation in the docs/build/html/ directory. You can the
 - [pybind11](https://github.com/pybind/pybind11) — Seamless C++/Python bindings
 - [SQLite3](https://www.sqlite.org/index.html) — Lightweight relational database for persistence
 - [task](https://taskfile.dev/) — A cross platform build tool inspired by Make
+- [cxxopts](https://github.com/jarro2783/cxxopts) — Lightweight C++ command line option parser
+- [Beast](https://github.com/boostorg/beast) — HTTP and WebSocket built on Boost.Asio in C++11
 
 Dependencies are fetched at build time via CMake FetchContent. Please refer to each library's repository for license information.
 

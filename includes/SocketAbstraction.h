@@ -24,6 +24,8 @@ public:
     static int Recv(int s, void* buf, int32_t len, int32_t flags);
     static int InetPtonAbstraction(int family, const char* pszAddrString, void* pAddrBuf);
     static int SetSockOpt(int s, int level, int optname, const char* optval, int optlen);
+    // static int SendTo(int s, const void* buf, int32_t len, int32_t flags, const struct sockaddr* dest, socklen_t destLen);
+    // static int RecvFrom(int s, void* buf, int32_t len, int32_t flags, struct sockaddr* src, socklen_t* srcLen);
 };
 
 #endif

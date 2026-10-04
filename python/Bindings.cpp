@@ -106,6 +106,11 @@ PYBIND11_MODULE(_mmw, m) {
     m.doc() = "Python bindings for Minimal Middleware";
 
     // Enums
+    py::enum_<MmwTransport>(m, "MmwTransport")
+        .value("MMW_TRANSPORT_TCP", MMW_TRANSPORT_TCP)
+        .value("MMW_TRANSPORT_WEBSOCKET", MMW_TRANSPORT_WEBSOCKET)
+        .export_values();
+
     py::enum_<MmwResult>(m, "MmwResult")
         .value("MMW_OK", MMW_OK)
         .value("MMW_ERROR", MMW_ERROR)
@@ -126,7 +131,7 @@ PYBIND11_MODULE(_mmw, m) {
         .export_values();
 
     // Core API
-    m.def("initialize", &mmw_initialize, py::arg("broker_ip"), py::arg("port"));
+    m.def("initialize", &mmw_initialize, py::arg("broker_ip"), py::arg("port"), py::arg("transport"));
     m.def("create_publisher", &mmw_create_publisher, py::arg("topic"));
     m.def("publish", &mmw_publish, py::arg("topic"), py::arg("message"), py::arg("reliability"));
     m.def("set_log_level", &mmw_set_log_level, py::arg("level"));

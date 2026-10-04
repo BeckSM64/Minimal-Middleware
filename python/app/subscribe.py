@@ -14,7 +14,7 @@ def my_callback_2(topic: str, msg: str):
 # mmw.set_log_level(mmw.MmwLogLevel.MMW_LOG_LEVEL_OFF)
 
 # Initialize the library
-mmw.initialize("127.0.0.1", 5000)
+mmw.initialize("127.0.0.1", 5001, mmw.MmwTransport.MMW_TRANSPORT_WEBSOCKET)
 
 # Create a subscriber object
 subscriber = mmw.create_subscriber("Test Topic", my_callback)

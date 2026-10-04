@@ -23,7 +23,7 @@ are created.
 
     #include "MMW.h"
 
-    if (mmw_initialize("127.0.0.1", 5000) != MMW_OK) {
+    if (mmw_initialize("127.0.0.1", 5000, MMW_TRANSPORT_TCP) != MMW_OK) {
         // initialization failed
     }
 
