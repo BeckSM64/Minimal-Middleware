@@ -320,8 +320,9 @@ MmwResult createSubscriberInternal(const char* topic, std::function<void(const M
  * Create subscriber
  */
 MmwResult mmw_create_subscriber(const char* topic, void (*cb)(const char*, const char*)) {
-    return createSubscriberInternal(topic, [cb, topic](const MmwMessage& msg) {
-        cb(topic, msg.payload.c_str());
+    std::string topicString = topic;
+    return createSubscriberInternal(topic, [cb, topicString](const MmwMessage& msg) {
+        cb(topicString.c_str(), msg.payload.c_str());
     });
 }
 
@@ -329,8 +330,9 @@ MmwResult mmw_create_subscriber(const char* topic, void (*cb)(const char*, const
  * Create subscriber for raw payload
  */
 MmwResult mmw_create_subscriber_raw(const char* topic, void (*cb)(const char*, void*, void*), void* context) {
-    return createSubscriberInternal(topic, [cb, topic, context](const MmwMessage& msg) {
-        cb(topic, msg.payload_raw, context);
+    std::string topicString = topic;
+    return createSubscriberInternal(topic, [cb, topicString, context](const MmwMessage& msg) {
+        cb(topicString.c_str(), msg.payload_raw, context);
     });
 }
 
