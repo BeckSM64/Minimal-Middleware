@@ -328,9 +328,9 @@ MmwResult mmw_create_subscriber(const char* topic, void (*cb)(const char*, const
 /**
  * Create subscriber for raw payload
  */
-MmwResult mmw_create_subscriber_raw(const char* topic, void (*cb)(const char*, void*)) {
-    return createSubscriberInternal(topic, [cb, topic](const MmwMessage& msg) {
-        cb(topic, msg.payload_raw);
+MmwResult mmw_create_subscriber_raw(const char* topic, void (*cb)(const char*, void*, void*), void* context) {
+    return createSubscriberInternal(topic, [cb, topic, context](const MmwMessage& msg) {
+        cb(topic, msg.payload_raw, context);
     });
 }
 
