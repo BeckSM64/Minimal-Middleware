@@ -52,17 +52,6 @@ static std::mutex transportSendMutexMapLock;
 static ITransport* serverTcpTransport = nullptr;
 static ITransport* serverBeastTransport = nullptr;
 
-void publishMonitorMessage(const std::string& message) {
-    MmwMessage msg;
-    msg.type = "publish";
-    msg.topic = "$mmw/monitor";
-    msg.payload = message;
-    msg.reliability = MMW_BEST_EFFORT;
-    msg.messageId = brokerMessageId++;
-
-    routeMessageToSubscribers(msg.topic, msg);
-}
-
 inline bool sendMessage(ITransport* transport, const std::string& data) {
     std::mutex* mtx;
     {
@@ -121,6 +110,36 @@ void routeMessageToSubscribers(const std::string& topic, const MmwMessage& msg) 
     }
 }
 
+void publishMonitorMessage(const std::string& message) {
+    MmwMessage msg;
+    msg.type = "publish";
+    msg.topic = "$mmw/monitor";
+    msg.payload = message;
+    msg.reliability = MMW_BEST_EFFORT;
+    msg.messageId = brokerMessageId++;
+
+    routeMessageToSubscribers(msg.topic, msg);
+}
+
+void publishMonitorConnections() {
+
+    std::string message;
+
+    {
+        std::lock_guard<std::mutex> lock(clientListMutex);
+
+        for (const auto& client : connectedClientList)
+        {
+            if (!message.empty())
+                message += "\n";
+
+            message += client.type + "|" + client.topic;
+        }
+    }
+
+    publishMonitorMessage(message);
+}
+
 void removeClientByTransport(ITransport* transport) {
     {
         std::lock_guard<std::mutex> lock(clientListMutex);
@@ -161,23 +180,41 @@ void handleClient(ITransport* transport) {
             MmwMessage msg = g_serializer->deserialize(data);
 
             if (msg.type == "register") {
-                auto now = std::chrono::steady_clock::now();
-                ConnectedTransportClient newClient{transport, msg.payload, msg.topic, std::chrono::steady_clock::now()};
-                std::lock_guard<std::mutex> lock(clientListMutex);
-                connectedClientList.push_back(newClient);
+                ConnectedTransportClient newClient{
+                    transport,
+                    msg.payload,
+                    msg.topic,
+                    std::chrono::steady_clock::now()
+                };
+
+                {
+                    std::lock_guard<std::mutex> lock(clientListMutex);
+                    connectedClientList.push_back(newClient);
+                }
+
                 spdlog::info("Registered {} for topic {}", msg.payload, msg.topic);
+
+                publishMonitorConnections();
             } else if (msg.type == "unregister") {
-                std::lock_guard<std::mutex> lock(clientListMutex);
-                connectedClientList.erase(
-                    std::remove_if(
-                        connectedClientList.begin(), connectedClientList.end(),
-                            [&](const ConnectedTransportClient& c){
-                            return c.transport == transport && c.topic == msg.topic;
-                        }
-                    ),
-                    connectedClientList.end()
-                );
+
+                {
+                    std::lock_guard<std::mutex> lock(clientListMutex);
+
+                    connectedClientList.erase(
+                        std::remove_if(
+                            connectedClientList.begin(),
+                            connectedClientList.end(),
+                            [&](const ConnectedTransportClient& c) {
+                                return c.transport == transport && c.topic == msg.topic;
+                            }
+                        ),
+                        connectedClientList.end()
+                    );
+                }
+
                 spdlog::info("Unregistered topic={}", msg.topic);
+
+                publishMonitorConnections();
             } else if (msg.type == "publish") {
 
                 // Assign a unique messageId
@@ -188,6 +225,13 @@ void handleClient(ITransport* transport) {
                 if (!g_persistence->persistMessage(msg)) {
                     spdlog::warn("Failed to persist message {}", msg.messageId);
                 }
+
+                publishMonitorMessage(
+                    "message|" +
+                    msg.topic + "|" +
+                    std::to_string(msg.messageId) + "|" +
+                    std::to_string(msg.payload.size())
+                );
 
                 routeMessageToSubscribers(msg.topic, msg);
 
@@ -286,9 +330,6 @@ int main(int argc, char *argv[]) {
 
     serverTcpTransport->InitializeServer(tcpPort);
     serverBeastTransport->InitializeServer(wsPort);
-
-    // TODO: Test monitoring service, remove
-    publishMonitorMessage("MMW broker monitoring connected");
 
     // Start heartbeat monitoring thread
     std::thread heartbeatMonitor([]() {
