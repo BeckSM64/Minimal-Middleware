@@ -17,7 +17,7 @@ typedef struct {
     int16_t testShort;
 } TestRawMessageStruct;
 
-void testRawMessageCallback(const char* topic, void* message) {
+void testRawMessageCallback(const char* topic, void* message, void* context) {
     TestRawMessageStruct *testRawMessageString = reinterpret_cast<TestRawMessageStruct*>(message);
     spdlog::info("{} {} {} {} {} {}", 
         testRawMessageString->testString1,
@@ -41,7 +41,7 @@ int main() {
     }
 
     // Create subscriber
-    if (mmw_create_subscriber_raw("Raw Message Topic", testRawMessageCallback) != MMW_OK) {
+    if (mmw_create_subscriber_raw("Raw Message Topic", testRawMessageCallback, nullptr) != MMW_OK) {
         spdlog::error("Failed to create MMW subscriber");
         return -1;
     }

@@ -92,7 +92,7 @@ MmwResult mmw_create_subscriber(const char* topic, void (*mmw_callback)(const ch
  * @param mmw_callback Callback function that receives the raw message data.
  * @return MMW_OK on success, MMW_ERROR on failure.
  */
-MmwResult mmw_create_subscriber_raw(const char* topic, void (*mmw_callback)(const char*, void*));
+MmwResult mmw_create_subscriber_raw(const char* topic, void (*mmw_callback)(const char*, void*, void*), void* context);
 
 /**
  * @brief Publish a message as a string.
