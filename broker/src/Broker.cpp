@@ -52,6 +52,17 @@ static std::mutex transportSendMutexMapLock;
 static ITransport* serverTcpTransport = nullptr;
 static ITransport* serverBeastTransport = nullptr;
 
+void publishMonitorMessage(const std::string& message) {
+    MmwMessage msg;
+    msg.type = "publish";
+    msg.topic = "$mmw/monitor";
+    msg.payload = message;
+    msg.reliability = MMW_BEST_EFFORT;
+    msg.messageId = brokerMessageId++;
+
+    routeMessageToSubscribers(msg.topic, msg);
+}
+
 inline bool sendMessage(ITransport* transport, const std::string& data) {
     std::mutex* mtx;
     {
@@ -275,6 +286,9 @@ int main(int argc, char *argv[]) {
 
     serverTcpTransport->InitializeServer(tcpPort);
     serverBeastTransport->InitializeServer(wsPort);
+
+    // TODO: Test monitoring service, remove
+    publishMonitorMessage("MMW broker monitoring connected");
 
     // Start heartbeat monitoring thread
     std::thread heartbeatMonitor([]() {
