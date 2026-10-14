@@ -307,3 +307,7 @@ endif()
 if(BUILD_PYTHON_MODULE)
     add_subdirectory(python/)
 endif()
+
+if (BUILD_TESTS)
+    add_subdirectory(test/)
+endif()
